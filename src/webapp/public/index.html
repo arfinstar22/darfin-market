@@ -103,7 +103,7 @@
             type="search"
             autocomplete="off"
             spellcheck="false"
-            placeholder="Cari saham IDX (BBCA, Bank), US (NVDA), atau crypto (BTC)..."
+            placeholder="Cari BBCA, NVDA, BTC..."
           />
           <button type="button" id="searchClearBtn" class="search-clear hidden" aria-label="Hapus pencarian">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -120,19 +120,19 @@
           <!-- Market Pulse Strip (Suhu Pasar Hari Ini) -->
           <div class="pulse-strip" aria-label="Ringkasan suhu pasar hari ini">
             <button type="button" class="pulse-card" id="pulseIdxCard">
-              <span class="pulse-label">Suhu IDX Populer</span>
-              <span class="pulse-val mono" id="pulseIdxVal">Memuat...</span>
-              <span class="pulse-sub" id="pulseIdxSub">10 saham utama RI</span>
+              <span class="pulse-label">IDX RI</span>
+              <span class="pulse-val mono" id="pulseIdxVal">...</span>
+              <span class="pulse-sub" id="pulseIdxSub">10 saham</span>
             </button>
             <button type="button" class="pulse-card" id="pulseUsCard">
-              <span class="pulse-label">Suhu Saham US</span>
-              <span class="pulse-val mono" id="pulseUsVal">Klik lihat US</span>
-              <span class="pulse-sub" id="pulseUsSub">Tech & AI global</span>
+              <span class="pulse-label">Saham US</span>
+              <span class="pulse-val mono" id="pulseUsVal">Lihat US</span>
+              <span class="pulse-sub" id="pulseUsSub">Tech & AI</span>
             </button>
             <button type="button" class="pulse-card" id="pulseFxCard">
-              <span class="pulse-label">Kurs USD / IDR</span>
+              <span class="pulse-label">USD / IDR</span>
               <span class="pulse-val mono" id="pulseFxVal">-</span>
-              <span class="pulse-sub" id="pulseFxSub">Referensi Frankfurter</span>
+              <span class="pulse-sub" id="pulseFxSub">Kurs ref</span>
             </button>
           </div>
 
@@ -316,18 +316,18 @@
                       <label for="fxFrom">Dari</label>
                       <div class="fx-select-with-flag">
                         <span id="fxFromFlag" class="fx-flag-slot" aria-hidden="true"></span>
-                        <select id="fxFrom">
-                          <option value="USD" selected>🇺🇸 USD - Dolar AS</option>
-                          <option value="IDR">🇮🇩 IDR - Rupiah</option>
-                          <option value="EUR">🇪🇺 EUR - Euro</option>
-                          <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
-                          <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
-                          <option value="GBP">🇬🇧 GBP - Poundsterling</option>
-                          <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
-                          <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
-                          <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
-                          <option value="KRW">🇰🇷 KRW - Won Korea</option>
-                          <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                        <select id="fxFrom" aria-label="Mata uang asal">
+                          <option value="USD" selected>USD (AS)</option>
+                          <option value="IDR">IDR (RI)</option>
+                          <option value="EUR">EUR (EU)</option>
+                          <option value="SGD">SGD (SG)</option>
+                          <option value="JPY">JPY (JP)</option>
+                          <option value="GBP">GBP (UK)</option>
+                          <option value="AUD">AUD (AU)</option>
+                          <option value="MYR">MYR (MY)</option>
+                          <option value="CNY">CNY (CN)</option>
+                          <option value="KRW">KRW (KR)</option>
+                          <option value="SAR">SAR (SA)</option>
                         </select>
                       </div>
                     </div>
@@ -343,18 +343,18 @@
                       <label for="fxTo">Ke</label>
                       <div class="fx-select-with-flag">
                         <span id="fxToFlag" class="fx-flag-slot" aria-hidden="true"></span>
-                        <select id="fxTo">
-                          <option value="IDR" selected>🇮🇩 IDR - Rupiah</option>
-                          <option value="USD">🇺🇸 USD - Dolar AS</option>
-                          <option value="EUR">🇪🇺 EUR - Euro</option>
-                          <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
-                          <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
-                          <option value="GBP">🇬🇧 GBP - Poundsterling</option>
-                          <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
-                          <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
-                          <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
-                          <option value="KRW">🇰🇷 KRW - Won Korea</option>
-                          <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                        <select id="fxTo" aria-label="Mata uang tujuan">
+                          <option value="IDR" selected>IDR (RI)</option>
+                          <option value="USD">USD (AS)</option>
+                          <option value="EUR">EUR (EU)</option>
+                          <option value="SGD">SGD (SG)</option>
+                          <option value="JPY">JPY (JP)</option>
+                          <option value="GBP">GBP (UK)</option>
+                          <option value="AUD">AUD (AU)</option>
+                          <option value="MYR">MYR (MY)</option>
+                          <option value="CNY">CNY (CN)</option>
+                          <option value="KRW">KRW (KR)</option>
+                          <option value="SAR">SAR (SA)</option>
                         </select>
                       </div>
                     </div>
