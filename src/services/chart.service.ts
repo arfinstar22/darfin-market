@@ -1,5 +1,6 @@
 import type { SnapshotRepository } from "../db/repositories/snapshot.repo.js";
 import type { CoinPaprikaProvider } from "../providers/coinpaprika/provider.js";
+import type { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import type { IndodaxProvider } from "../providers/indodax/provider.js";
 import type { TwelveDataProvider } from "../providers/twelvedata/provider.js";
 import type { ChartRange, ChartSeries } from "../types/market.js";
@@ -27,6 +28,7 @@ export class ChartService {
     private readonly indodax: IndodaxProvider,
     private readonly coinpaprika: CoinPaprikaProvider,
     private readonly twelvedata: TwelveDataProvider,
+    private readonly goapi?: GoApiIdxProvider,
   ) {}
 
   async getChartSeries(symbolInput: string, range: ChartRange): Promise<ChartSeries> {
@@ -34,13 +36,33 @@ export class ChartService {
     const upper = clean.toUpperCase();
     const since = new Date(Date.now() - RANGE_DAYS[range] * 86_400_000);
 
-    // 1. Check if stock (IDX or US via Twelve Data)
+    // 1. Check if stock (IDX via GoAPI first, then Twelve Data for US/Global)
     const parsedStock = parseStockInput(clean);
     const looksLikeStock =
       upper.endsWith(".JK") ||
       upper.endsWith(":IDX") ||
       upper.startsWith("IDX:") ||
       parsedStock.market === "IDX";
+
+    if (parsedStock.market === "IDX" && this.goapi?.isConfigured()) {
+      const candles = await this.goapi.getHistoricalCandles(
+        { symbol: parsedStock.symbol, exchange: "IDX" },
+        range,
+      );
+      if (candles.length >= 2) {
+        return {
+          provider: "goapi",
+          assetId: `${parsedStock.symbol}:IDX`,
+          symbol: parsedStock.symbol,
+          quoteCurrency: "IDR",
+          range,
+          points: candles.map((c) => ({ timestamp: c.timestamp, price: c.close })),
+          sourceNote: "Sumber: GoAPI.io (IDX) - data historis harian",
+          startedAt: candles[0]!.timestamp,
+          endedAt: candles[candles.length - 1]!.timestamp,
+        };
+      }
+    }
 
     if (looksLikeStock || (this.twelvedata.isConfigured() && !(await this.indodax.resolvePair(upper, "IDR")))) {
       if (this.twelvedata.isConfigured()) {
@@ -64,7 +86,7 @@ export class ChartService {
       }
       if (looksLikeStock) {
         throw new ValidationError(
-          "Grafik saham memerlukan TWELVE_DATA_API_KEY di .env atau data historis belum tersedia untuk simbol ini.",
+          "Grafik saham IDX memerlukan GOAPI_API_KEY (gratis di goapi.io) atau data historis belum tersedia untuk simbol ini.",
         );
       }
     }

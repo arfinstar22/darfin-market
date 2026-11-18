@@ -40,6 +40,14 @@ export async function startBackgroundWorkers(
       { name: "check-provider", data: { provider: "coinpaprika" satisfies ProviderName } },
     );
 
+    if (container.providers.goapi.isConfigured()) {
+      await alertQueue.upsertJobScheduler(
+        "alert-goapi",
+        { every: env.STOCK_ALERT_INTERVAL_SECONDS * 1000 },
+        { name: "check-provider", data: { provider: "goapi" satisfies ProviderName } },
+      );
+    }
+
     if (container.providers.finnhub.isConfigured()) {
       await alertQueue.upsertJobScheduler(
         "alert-finnhub",
@@ -127,6 +135,15 @@ export async function startBackgroundWorkers(
       env.COINPAPRIKA_ALERT_INTERVAL_SECONDS * 1000,
     ),
   );
+
+  if (container.providers.goapi.isConfigured()) {
+    timers.push(
+      setInterval(
+        () => runSafe("alert-goapi", () => processAlertsForProvider(container, telegramApi, "goapi")),
+        env.STOCK_ALERT_INTERVAL_SECONDS * 1000,
+      ),
+    );
+  }
 
   if (container.providers.finnhub.isConfigured()) {
     timers.push(

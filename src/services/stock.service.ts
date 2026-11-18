@@ -7,6 +7,7 @@ import {
 } from "../config/constants.js";
 import type { AlphaVantageProvider } from "../providers/alphavantage/provider.js";
 import type { FinnhubProvider } from "../providers/finnhub/provider.js";
+import type { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import type { TwelveDataProvider } from "../providers/twelvedata/provider.js";
 import type { AssetSearchResult, MarketTicker } from "../types/market.js";
 import { logger } from "../utils/logger.js";
@@ -28,7 +29,6 @@ export interface ParsedStockInput {
 export function parseStockInput(raw: string): ParsedStockInput {
   const cleaned = raw.trim().toUpperCase();
 
-  // Explicit IDX suffixes: BBCA.JK, BBCA:IDX, IDX:BBCA
   if (cleaned.endsWith(".JK")) {
     return { symbol: cleaned.slice(0, -3), exchange: "IDX", market: "IDX" };
   }
@@ -39,25 +39,26 @@ export function parseStockInput(raw: string): ParsedStockInput {
     return { symbol: cleaned.slice(4), exchange: "IDX", market: "IDX" };
   }
 
-  // Generic exchange notation: SYMBOL:EXCHANGE
   if (cleaned.includes(":")) {
     const [sym, ex] = cleaned.split(":");
     const exchange = ex || undefined;
-    const market = exchange === "IDX" ? "IDX" : exchange === "NASDAQ" || exchange === "NYSE" ? "US" : "GLOBAL";
+    const market =
+      exchange === "IDX"
+        ? "IDX"
+        : exchange === "NASDAQ" || exchange === "NYSE"
+          ? "US"
+          : "GLOBAL";
     return { symbol: sym ?? cleaned, exchange, market };
   }
 
-  // Known popular IDX tickers (BBCA, BBRI, TLKM, BMRI, etc.)
   if (POPULAR_IDX_SYMBOL_SET.has(cleaned)) {
     return { symbol: cleaned, exchange: "IDX", market: "IDX" };
   }
 
-  // Known popular US tickers (AAPL, NVDA, MSFT, etc.)
   if (POPULAR_US_SYMBOL_SET.has(cleaned)) {
     return { symbol: cleaned, market: "US" };
   }
 
-  // Default to US/Global
   return { symbol: cleaned, market: "US" };
 }
 
@@ -66,6 +67,7 @@ export class StockService {
     private readonly finnhub: FinnhubProvider,
     private readonly twelvedata: TwelveDataProvider,
     private readonly alphavantage: AlphaVantageProvider,
+    private readonly goapi?: GoApiIdxProvider,
   ) {}
 
   getPopularIdxStocks(): readonly CuratedStock[] {
@@ -78,10 +80,44 @@ export class StockService {
 
   hasAnyConfiguredProvider(): boolean {
     return (
+      Boolean(this.goapi?.isConfigured()) ||
       this.finnhub.isConfigured() ||
       this.twelvedata.isConfigured() ||
       this.alphavantage.isConfigured()
     );
+  }
+
+  hasIdxProviderConfigured(): boolean {
+    return Boolean(this.goapi?.isConfigured()) || this.twelvedata.isConfigured() || this.alphavantage.isConfigured();
+  }
+
+  /**
+   * Batch lookup for IDX stocks — uses GoAPI.io single batch call when configured (10x fewer requests).
+   */
+  async lookupIdxBatch(symbols: string[]): Promise<Map<string, StockLookupResult>> {
+    const results = new Map<string, StockLookupResult>();
+    const cleanSymbols = symbols.map((s) => s.trim().toUpperCase().replace(".JK", "").replace(":IDX", ""));
+
+    if (this.goapi?.isConfigured()) {
+      try {
+        const batchMap = await this.goapi.getBatchQuotes(cleanSymbols);
+        for (const sym of cleanSymbols) {
+          const ticker = batchMap.get(sym) ?? null;
+          results.set(sym, { query: sym, market: "IDX", ticker });
+        }
+        return results;
+      } catch (error) {
+        logger.warn({ err: String(error) }, "GoAPI batch IDX fetch failed, falling back per symbol");
+      }
+    }
+
+    await Promise.all(
+      cleanSymbols.map(async (sym) => {
+        const res = await this.lookupIdxStock({ symbol: sym, exchange: "IDX", market: "IDX" });
+        results.set(sym, res);
+      }),
+    );
+    return results;
   }
 
   async lookupStock(rawInput: string): Promise<StockLookupResult> {
@@ -94,18 +130,32 @@ export class StockService {
   }
 
   private async lookupIdxStock(parsed: ParsedStockInput): Promise<StockLookupResult> {
-    if (!this.twelvedata.isConfigured() && !this.alphavantage.isConfigured()) {
+    if (!this.hasIdxProviderConfigured()) {
       return {
         query: parsed.symbol,
         market: "IDX",
         ticker: null,
         unconfiguredHint:
-          "Provider saham Indonesia (IDX) belum aktif. Tambahkan TWELVE_DATA_API_KEY di file .env untuk memantau saham IDX seperti BBCA, BBRI, TLKM, BMRI.",
+          "Provider saham Indonesia (IDX) belum aktif. Tambahkan GOAPI_API_KEY (gratis di goapi.io) di Environment Render / .env untuk memantau BBCA, BBRI, TLKM, BMRI, dll.",
       };
     }
 
     const errors: string[] = [];
 
+    // 1. GoAPI.io first (dedicated Indonesian IDX provider with free tier)
+    if (this.goapi?.isConfigured()) {
+      try {
+        const ticker = await this.goapi.getQuote({ symbol: parsed.symbol, exchange: "IDX" });
+        if (ticker) {
+          return { query: parsed.symbol, market: "IDX", ticker };
+        }
+      } catch (error) {
+        logger.warn({ symbol: parsed.symbol, err: String(error) }, "GoAPI IDX quote failed");
+        errors.push("GoAPI.io");
+      }
+    }
+
+    // 2. Twelve Data fallback (IDX requires Pro plan on Twelve Data)
     if (this.twelvedata.isConfigured()) {
       try {
         const ticker = await this.twelvedata.getQuote({
@@ -118,13 +168,16 @@ export class StockService {
       } catch (error) {
         logger.warn({ symbol: parsed.symbol, err: String(error) }, "TwelveData IDX quote failed");
         const msg =
-          error instanceof Error && "statusCode" in error && (error as { statusCode?: number }).statusCode === 403
-            ? "Twelve Data (IDX butuh plan Pro)"
+          error instanceof Error &&
+          "statusCode" in error &&
+          (error as { statusCode?: number }).statusCode === 403
+            ? "Twelve Data (IDX butuh plan Pro — gunakan GOAPI_API_KEY gratis dari goapi.io)"
             : "Twelve Data";
         errors.push(msg);
       }
     }
 
+    // 3. Alpha Vantage optional fallback
     if (this.alphavantage.isConfigured()) {
       try {
         const ticker = await this.alphavantage.getQuote({
@@ -146,7 +199,7 @@ export class StockService {
       ticker: null,
       error:
         errors.length > 0
-          ? `Provider saham (${errors.join(", ")}) sedang bermasalah atau simbol tidak tersedia di plan saat ini.`
+          ? `Provider saham IDX: ${errors.join("; ")}.`
           : undefined,
     };
   }
@@ -158,13 +211,12 @@ export class StockService {
         market: parsed.market,
         ticker: null,
         unconfiguredHint:
-          "Provider saham belum aktif. Tambahkan FINNHUB_API_KEY (US real-time) dan/atau TWELVE_DATA_API_KEY (IDX & Global) di file .env.",
+          "Provider saham belum aktif. Tambahkan FINNHUB_API_KEY (US real-time) dan/atau GOAPI_API_KEY (IDX) di Environment.",
       };
     }
 
     const errors: string[] = [];
 
-    // 1. Finnhub first for US stocks (real-time US trade quote, 60 req/min free)
     if (parsed.market === "US" && !parsed.exchange && this.finnhub.isConfigured()) {
       try {
         const ticker = await this.finnhub.getQuote({ symbol: parsed.symbol });
@@ -177,7 +229,6 @@ export class StockService {
       }
     }
 
-    // 2. Twelve Data for global / US fallback
     if (this.twelvedata.isConfigured()) {
       try {
         const ticker = await this.twelvedata.getQuote({
@@ -193,7 +244,6 @@ export class StockService {
       }
     }
 
-    // 3. Alpha Vantage optional fallback (EOD/delayed)
     if (this.alphavantage.isConfigured()) {
       try {
         const ticker = await this.alphavantage.getQuote({
@@ -227,14 +277,13 @@ export class StockService {
     const results: AssetSearchResult[] = [];
     const seen = new Set<string>();
 
-    // Instant curated match for popular IDX & US stocks
     for (const s of [...POPULAR_IDX_STOCKS, ...POPULAR_US_STOCKS]) {
       if (s.symbol.includes(clean) || s.name.toUpperCase().includes(clean)) {
         const key = `${s.symbol}:${s.exchange}`;
         if (!seen.has(key)) {
           seen.add(key);
           results.push({
-            provider: s.market === "IDX" ? "twelvedata" : "finnhub",
+            provider: s.market === "IDX" ? "goapi" : "finnhub",
             assetClass: "stock",
             assetId: s.market === "IDX" ? `${s.symbol}:IDX` : s.symbol,
             symbol: s.symbol,
@@ -248,6 +297,9 @@ export class StockService {
     }
 
     const remoteCalls: Promise<AssetSearchResult[]>[] = [];
+    if (this.goapi?.isConfigured()) {
+      remoteCalls.push(this.goapi.searchStocks(query, limit));
+    }
     if (this.twelvedata.isConfigured()) {
       remoteCalls.push(this.twelvedata.searchStocks(query, limit));
     }

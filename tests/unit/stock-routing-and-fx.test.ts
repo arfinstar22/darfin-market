@@ -4,6 +4,8 @@ import type { AlphaVantageClient } from "../../src/providers/alphavantage/client
 import { AlphaVantageProvider } from "../../src/providers/alphavantage/provider.js";
 import type { FinnhubClient } from "../../src/providers/finnhub/client.js";
 import { FinnhubProvider } from "../../src/providers/finnhub/provider.js";
+import type { GoApiClient } from "../../src/providers/goapi/client.js";
+import { GoApiIdxProvider } from "../../src/providers/goapi/provider.js";
 import type { FrankfurterClient } from "../../src/providers/frankfurter/client.js";
 import { FrankfurterProvider } from "../../src/providers/frankfurter/provider.js";
 import type { TwelveDataClient } from "../../src/providers/twelvedata/client.js";
@@ -76,6 +78,57 @@ describe("Stock routing (Indonesia IDX & International US) and FX conversion", (
     expect(bbca.ticker?.quoteCurrency).toBe("IDR");
     expect(bbca.ticker?.price).toBe("10100");
     expect(twelveDataClient.getQuote).toHaveBeenCalledWith("BBCA", "IDX");
+  });
+
+  it("routes IDX stocks to GoAPI.io batch first when configured", async () => {
+    const cache = new MemoryCacheService();
+    const goApiClient = {
+      isConfigured: () => true,
+      getPrices: vi.fn().mockResolvedValue({
+        results: [
+          {
+            symbol: "BBCA",
+            name: "Bank Central Asia Tbk.",
+            price: 10150,
+            open: 10050,
+            high: 10200,
+            low: 10000,
+            close: 10150,
+            change: 100,
+            percent_change: 0.99,
+            volume: 4523100,
+            last_updated: "2026-11-18T03:00:00Z",
+          },
+          {
+            symbol: "BBRI",
+            name: "Bank Rakyat Indonesia Tbk.",
+            price: 4920,
+            change: -30,
+            percent_change: -0.61,
+          },
+        ],
+        latencyMs: 55,
+      }),
+    } as unknown as GoApiClient;
+
+    const stockService = new StockService(
+      new FinnhubProvider(cache, { isConfigured: () => false } as unknown as FinnhubClient),
+      new TwelveDataProvider(cache, { isConfigured: () => false } as unknown as TwelveDataClient),
+      new AlphaVantageProvider(cache, { isConfigured: () => false } as unknown as AlphaVantageClient),
+      new GoApiIdxProvider(cache, goApiClient),
+    );
+
+    const batch = await stockService.lookupIdxBatch(["BBCA", "BBRI"]);
+    expect(batch.get("BBCA")?.ticker?.provider).toBe("goapi");
+    expect(batch.get("BBCA")?.ticker?.price).toBe("10150");
+    expect(batch.get("BBRI")?.ticker?.price).toBe("4920");
+    // Single batch request for both stocks
+    expect(goApiClient.getPrices).toHaveBeenCalledTimes(1);
+
+    // Subsequent single lookup uses cache (still 1 API call total)
+    const single = await stockService.lookupStock("BBCA");
+    expect(single.ticker?.price).toBe("10150");
+    expect(goApiClient.getPrices).toHaveBeenCalledTimes(1);
   });
 
   it("converts FX using Frankfurter reference rates and rejects invalid amount or unsupported currency", async () => {

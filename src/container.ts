@@ -19,6 +19,7 @@ import { AlphaVantageProvider } from "./providers/alphavantage/provider.js";
 import { CoinPaprikaProvider } from "./providers/coinpaprika/provider.js";
 import { FinnhubProvider } from "./providers/finnhub/provider.js";
 import { FrankfurterProvider } from "./providers/frankfurter/provider.js";
+import { GoApiIdxProvider } from "./providers/goapi/provider.js";
 import { IndodaxProvider } from "./providers/indodax/provider.js";
 import { TwelveDataProvider } from "./providers/twelvedata/provider.js";
 import { AlertService } from "./services/alert.service.js";
@@ -48,6 +49,7 @@ export interface AppContainer {
     indodax: IndodaxProvider;
     coinpaprika: CoinPaprikaProvider;
     frankfurter: FrankfurterProvider;
+    goapi: GoApiIdxProvider;
     finnhub: FinnhubProvider;
     twelvedata: TwelveDataProvider;
     alphavantage: AlphaVantageProvider;
@@ -80,12 +82,13 @@ export function createAppContainer(): AppContainer {
   const indodax = new IndodaxProvider(cache);
   const coinpaprika = new CoinPaprikaProvider(cache);
   const frankfurter = new FrankfurterProvider(cache);
+  const goapi = new GoApiIdxProvider(cache);
   const finnhub = new FinnhubProvider(cache);
   const twelvedata = new TwelveDataProvider(cache);
   const alphavantage = new AlphaVantageProvider(cache);
 
   const marketService = new MarketService(indodax, coinpaprika, frankfurter);
-  const stockService = new StockService(finnhub, twelvedata, alphavantage);
+  const stockService = new StockService(finnhub, twelvedata, alphavantage, goapi);
   const fxService = new FxService(frankfurter);
   const searchService = new SearchService(coinpaprika, stockService);
   const watchlistService = new WatchlistService(
@@ -96,11 +99,12 @@ export function createAppContainer(): AppContainer {
     stockService,
   );
   const alertService = new AlertService(alerts, marketService, stockService);
-  const chartService = new ChartService(snapshots, indodax, coinpaprika, twelvedata);
+  const chartService = new ChartService(snapshots, indodax, coinpaprika, twelvedata, goapi);
   const healthService = new ProviderHealthService(() => checkDbHealth(pool), cache, {
     indodax,
     coinpaprika,
     frankfurter,
+    goapi,
     finnhub,
     twelvedata,
     alphavantage,
@@ -112,7 +116,7 @@ export function createAppContainer(): AppContainer {
     redis,
     cache,
     repos: { users, watchlist, alerts, snapshots, providerHealth },
-    providers: { indodax, coinpaprika, frankfurter, finnhub, twelvedata, alphavantage },
+    providers: { indodax, coinpaprika, frankfurter, goapi, finnhub, twelvedata, alphavantage },
     services: {
       cache,
       userRepo: users,

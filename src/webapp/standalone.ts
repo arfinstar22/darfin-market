@@ -4,6 +4,7 @@ import { AlphaVantageProvider } from "../providers/alphavantage/provider.js";
 import { CoinPaprikaProvider } from "../providers/coinpaprika/provider.js";
 import { FinnhubProvider } from "../providers/finnhub/provider.js";
 import { FrankfurterProvider } from "../providers/frankfurter/provider.js";
+import { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import { IndodaxProvider } from "../providers/indodax/provider.js";
 import { TwelveDataProvider } from "../providers/twelvedata/provider.js";
 import { AlertService } from "../services/alert.service.js";
@@ -30,12 +31,13 @@ async function main() {
   const indodax = new IndodaxProvider(cache);
   const coinpaprika = new CoinPaprikaProvider(cache);
   const frankfurter = new FrankfurterProvider(cache);
+  const goapi = new GoApiIdxProvider(cache);
   const finnhub = new FinnhubProvider(cache);
   const twelvedata = new TwelveDataProvider(cache);
   const alphavantage = new AlphaVantageProvider(cache);
 
   const marketService = new MarketService(indodax, coinpaprika, frankfurter);
-  const stockService = new StockService(finnhub, twelvedata, alphavantage);
+  const stockService = new StockService(finnhub, twelvedata, alphavantage, goapi);
   const fxService = new FxService(frankfurter);
   const searchService = new SearchService(coinpaprika, stockService);
 
@@ -43,11 +45,12 @@ async function main() {
     getSeries: async () => [],
   } as unknown as SnapshotRepository;
 
-  const chartService = new ChartService(emptySnapshots, indodax, coinpaprika, twelvedata);
+  const chartService = new ChartService(emptySnapshots, indodax, coinpaprika, twelvedata, goapi);
   const healthService = new ProviderHealthService(async () => false, cache, {
     indodax,
     coinpaprika,
     frankfurter,
+    goapi,
     finnhub,
     twelvedata,
     alphavantage,

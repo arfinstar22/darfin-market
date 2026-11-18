@@ -55,6 +55,9 @@ const envSchema = z.object({
   ALPHA_VANTAGE_BASE_URL: z.string().url().default("https://www.alphavantage.co"),
   ALPHA_VANTAGE_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 
+  GOAPI_BASE_URL: z.string().url().default("https://api.goapi.io"),
+  GOAPI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+
   INDODAX_TICKER_TTL: z.coerce.number().int().min(5).max(3600).default(20),
   INDODAX_PAIRS_TTL: z.coerce.number().int().min(60).max(86400).default(21600),
   COINPAPRIKA_TICKER_TTL: z.coerce.number().int().min(60).max(7200).default(600),
@@ -71,6 +74,7 @@ const envSchema = z.object({
   COINPAPRIKA_MONTHLY_QUOTA: z.coerce.number().int().min(100).default(20000),
   TWELVE_DATA_DAILY_QUOTA: z.coerce.number().int().min(10).default(800),
   ALPHA_VANTAGE_DAILY_QUOTA: z.coerce.number().int().min(5).default(25),
+  GOAPI_DAILY_QUOTA: z.coerce.number().int().min(10).default(500),
 
   MAX_WATCHLIST_ITEMS: z.coerce.number().int().min(1).max(100).default(20),
   MAX_ACTIVE_ALERTS_PER_USER: z.coerce.number().int().min(1).max(100).default(20),

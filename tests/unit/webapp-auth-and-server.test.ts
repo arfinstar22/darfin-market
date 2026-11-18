@@ -82,6 +82,32 @@ describe("Telegram Mini App HMAC auth and HTTP API", () => {
           getPopularIdxStocks: () => POPULAR_IDX_STOCKS,
           getPopularUsStocks: () => POPULAR_US_STOCKS,
           hasAnyConfiguredProvider: () => true,
+          lookupIdxBatch: vi.fn().mockResolvedValue(
+            new Map([
+              [
+                "BBCA",
+                {
+                  query: "BBCA",
+                  market: "IDX",
+                  ticker: {
+                    provider: "goapi",
+                    assetClass: "stock",
+                    assetId: "BBCA:IDX",
+                    symbol: "BBCA",
+                    name: "Bank Central Asia Tbk",
+                    exchange: "IDX",
+                    quoteCurrency: "IDR",
+                    price: "10150",
+                    change24hPercent: "1.25",
+                    dataFeedType: "delayed_or_eod",
+                    sourceLabel: "Sumber: GoAPI.io (IDX) — delay 3-10 menit",
+                    fetchedAt: new Date().toISOString(),
+                    isStale: false,
+                  },
+                },
+              ],
+            ]),
+          ),
           lookupStock: vi.fn().mockResolvedValue({
             query: "BBCA",
             market: "IDX",

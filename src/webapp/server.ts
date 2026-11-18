@@ -173,19 +173,35 @@ export function createWebAppServer(options: WebAppServerOptions): Server {
             ? services.stockService.getPopularIdxStocks()
             : services.stockService.getPopularUsStocks();
 
-        const quotes = await Promise.all(
-          curated.map(async (item) => {
-            const lookupKey = item.market === "IDX" ? `${item.symbol}:IDX` : item.symbol;
-            const resQuote = await services.stockService.lookupStock(lookupKey);
+        let quotes;
+        if (market === "idx") {
+          const batchMap = await services.stockService.lookupIdxBatch(curated.map((c) => c.symbol));
+          quotes = curated.map((item) => {
+            const lookupKey = `${item.symbol}:IDX`;
+            const resQuote = batchMap.get(item.symbol);
             return {
               ...item,
               lookupKey,
-              ticker: resQuote.ticker,
-              error: resQuote.error,
-              unconfiguredHint: resQuote.unconfiguredHint,
+              ticker: resQuote?.ticker ?? null,
+              error: resQuote?.error,
+              unconfiguredHint: resQuote?.unconfiguredHint,
             };
-          }),
-        );
+          });
+        } else {
+          quotes = await Promise.all(
+            curated.map(async (item) => {
+              const lookupKey = item.symbol;
+              const resQuote = await services.stockService.lookupStock(lookupKey);
+              return {
+                ...item,
+                lookupKey,
+                ticker: resQuote.ticker,
+                error: resQuote.error,
+                unconfiguredHint: resQuote.unconfiguredHint,
+              };
+            }),
+          );
+        }
 
         const hint = quotes.find((q) => q.unconfiguredHint)?.unconfiguredHint;
         sendJson(res, 200, {
@@ -305,12 +321,25 @@ export function createWebAppServer(options: WebAppServerOptions): Server {
               const allIndodax = await services.marketService.getPopularIndodaxTickers();
               ticks.push(...allIndodax);
             } else if (rawSymbols.length > 0 && services.stockService.hasAnyConfiguredProvider()) {
-              const settled = await Promise.allSettled(
-                rawSymbols.map((sym) => services.stockService.lookupStock(sym)),
+              const idxSymbols = rawSymbols.filter(
+                (s) => s.toUpperCase().endsWith(":IDX") || s.toUpperCase().endsWith(".JK"),
               );
-              for (const item of settled) {
-                if (item.status === "fulfilled" && item.value.ticker) {
-                  ticks.push(item.value.ticker);
+              const otherSymbols = rawSymbols.filter((s) => !idxSymbols.includes(s));
+
+              if (idxSymbols.length > 0) {
+                const idxBatch = await services.stockService.lookupIdxBatch(idxSymbols);
+                for (const item of idxBatch.values()) {
+                  if (item.ticker) ticks.push(item.ticker);
+                }
+              }
+              if (otherSymbols.length > 0) {
+                const settled = await Promise.allSettled(
+                  otherSymbols.map((sym) => services.stockService.lookupStock(sym)),
+                );
+                for (const item of settled) {
+                  if (item.status === "fulfilled" && item.value.ticker) {
+                    ticks.push(item.value.ticker);
+                  }
                 }
               }
             }

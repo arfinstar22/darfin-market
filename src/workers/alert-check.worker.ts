@@ -117,6 +117,15 @@ async function fetchTickersForProviderBatch(
       return map;
     }
 
+    if (provider === "goapi") {
+      const uniqueSyms = Array.from(new Set(alerts.map((a) => a.symbol)));
+      const batch = await container.providers.goapi.getBatchQuotes(uniqueSyms);
+      for (const ticker of batch.values()) {
+        map.set(ticker.assetId.toLowerCase(), ticker);
+      }
+      return map;
+    }
+
     // Stock providers — deduplicate unique assets per batch
     const uniqueAssets = Array.from(
       new Map(alerts.map((a) => [a.assetId.toLowerCase(), a])).values(),
