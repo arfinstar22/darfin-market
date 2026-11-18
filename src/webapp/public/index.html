@@ -90,6 +90,7 @@
           </button>
         </div>
       </header>
+      <div id="topLoader" class="top-loader hidden" aria-hidden="true"><span class="top-loader-bar"></span></div>
 
       <div class="search-wrap">
         <label class="sr-only" for="searchInput">Cari saham atau crypto</label>
@@ -166,6 +167,10 @@
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="priceChartCanvas" height="210" aria-label="Grafik pergerakan harga"></canvas>
+                    <div id="chartSkeleton" class="chart-skeleton hidden" aria-hidden="true">
+                      <span class="skel skel-chart-line"></span>
+                      <span class="skel skel-chart-bar"></span>
+                    </div>
                     <div id="chartEmptyState" class="chart-empty hidden">
                       Data historis belum tersedia untuk rentang ini.
                     </div>

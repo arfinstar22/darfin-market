@@ -29,11 +29,54 @@ const state = {
   chartPoints: [],
   selectionSeq: 0,
   stocksItems: [],
+  stocksCacheByMarket: { idx: null, us: null },
+  tabLoadedAt: { stocks_idx: 0, stocks_us: 0, crypto: 0, fx: 0, personal: 0 },
+  pendingRequests: 0,
   previousPrices: new Map(),
   cryptoData: null,
+  fxData: null,
   moverDir: "gainers",
   eventSource: null,
 };
+
+const TAB_FRESH_MS = 45_000;
+
+function beginLoading() {
+  state.pendingRequests += 1;
+  document.getElementById("topLoader")?.classList.remove("hidden");
+  document.getElementById("refreshBtn")?.classList.add("spinning");
+}
+
+function endLoading() {
+  state.pendingRequests = Math.max(0, state.pendingRequests - 1);
+  if (state.pendingRequests === 0) {
+    document.getElementById("topLoader")?.classList.add("hidden");
+    document.getElementById("refreshBtn")?.classList.remove("spinning");
+  }
+}
+
+function renderSkeletonRows(container, count = 5, withFlag = false) {
+  if (!container) return;
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    rows.push(`
+      <div class="skel-row" aria-hidden="true">
+        <div class="skel-left">
+          ${withFlag ? '<span class="skel skel-flag"></span>' : ""}
+          <div class="skel-stack">
+            <span class="skel skel-title"></span>
+            <span class="skel skel-sub"></span>
+          </div>
+        </div>
+        <div class="skel-right">
+          <span class="skel skel-price"></span>
+          <span class="skel skel-pill"></span>
+        </div>
+      </div>
+    `);
+  }
+  container.innerHTML = rows.join("");
+}
 
 function getLocalWatchlist() {
   try {
@@ -391,15 +434,18 @@ function renderDetailTicker(ticker, fallbackMeta) {
 
 async function loadChartForSelected(expectedSeq = state.selectionSeq) {
   const emptyEl = document.getElementById("chartEmptyState");
-  emptyEl.textContent = "Memuat grafik...";
-  emptyEl.classList.remove("hidden");
+  const skelEl = document.getElementById("chartSkeleton");
+  emptyEl.classList.add("hidden");
+  skelEl?.classList.remove("hidden");
   state.chartPoints = [];
+  beginLoading();
 
   try {
     const data = await apiFetch(
       `/api/chart?symbol=${encodeURIComponent(state.selectedAsset.lookupKey)}&range=${encodeURIComponent(state.chartRange)}`,
     );
     if (expectedSeq !== state.selectionSeq) return;
+    skelEl?.classList.add("hidden");
     state.chartPoints = data.series.points ?? [];
     drawChart(state.chartPoints, data.series.quoteCurrency || state.selectedAsset.currency);
     if (data.series.sourceNote) {
@@ -407,43 +453,51 @@ async function loadChartForSelected(expectedSeq = state.selectionSeq) {
     }
   } catch (err) {
     if (expectedSeq !== state.selectionSeq) return;
+    skelEl?.classList.add("hidden");
     emptyEl.textContent = err.message || "Data grafik belum tersedia untuk rentang ini.";
     drawChart([], state.selectedAsset.currency);
+  } finally {
+    endLoading();
   }
 }
 
 async function selectAsset(meta) {
   haptic("light");
   const seq = ++state.selectionSeq;
+  beginLoading();
 
-  if (meta.assetClass === "stock") {
-    try {
-      const data = await apiFetch(`/api/stock/${encodeURIComponent(meta.lookupKey || meta.symbol)}`);
-      if (seq !== state.selectionSeq) return;
-      renderDetailTicker(data.result.ticker, meta);
-      if (data.result.unconfiguredHint) {
-        const banner = document.getElementById("stockConfigBanner");
-        banner.textContent = data.result.unconfiguredHint;
-        banner.classList.remove("hidden");
+  try {
+    if (meta.assetClass === "stock") {
+      try {
+        const data = await apiFetch(`/api/stock/${encodeURIComponent(meta.lookupKey || meta.symbol)}`);
+        if (seq !== state.selectionSeq) return;
+        renderDetailTicker(data.result.ticker, meta);
+        if (data.result.unconfiguredHint) {
+          const banner = document.getElementById("stockConfigBanner");
+          banner.textContent = data.result.unconfiguredHint;
+          banner.classList.remove("hidden");
+        }
+      } catch {
+        if (seq !== state.selectionSeq) return;
+        renderDetailTicker(null, meta);
       }
-    } catch {
-      if (seq !== state.selectionSeq) return;
-      renderDetailTicker(null, meta);
+    } else {
+      try {
+        const queryKey = meta.exchange === "COINPAPRIKA" ? (meta.lookupKey || meta.symbol) : meta.symbol;
+        const data = await apiFetch(`/api/crypto/${encodeURIComponent(queryKey)}`);
+        if (seq !== state.selectionSeq) return;
+        const t =
+          meta.exchange === "COINPAPRIKA"
+            ? (data.result.globalTicker ?? data.result.indodaxTicker)
+            : (data.result.indodaxTicker ?? data.result.globalTicker);
+        renderDetailTicker(t, meta);
+      } catch {
+        if (seq !== state.selectionSeq) return;
+        renderDetailTicker(null, meta);
+      }
     }
-  } else {
-    try {
-      const queryKey = meta.exchange === "COINPAPRIKA" ? (meta.lookupKey || meta.symbol) : meta.symbol;
-      const data = await apiFetch(`/api/crypto/${encodeURIComponent(queryKey)}`);
-      if (seq !== state.selectionSeq) return;
-      const t =
-        meta.exchange === "COINPAPRIKA"
-          ? (data.result.globalTicker ?? data.result.indodaxTicker)
-          : (data.result.indodaxTicker ?? data.result.globalTicker);
-      renderDetailTicker(t, meta);
-    } catch {
-      if (seq !== state.selectionSeq) return;
-      renderDetailTicker(null, meta);
-    }
+  } finally {
+    endLoading();
   }
 
   if (seq !== state.selectionSeq) return;
@@ -531,22 +585,61 @@ function renderSectorChips(items) {
   }
 }
 
-async function loadStocksTab(options = { preserveSelection: false }) {
+async function loadStocksTab(options = { preserveSelection: false, force: false }) {
   const seqBefore = state.selectionSeq;
   const listEl = document.getElementById("stocksList");
   const titleEl = document.getElementById("stocksListTitle");
   const banner = document.getElementById("stockConfigBanner");
+  const market = state.stockMarket;
+  const cacheKey = market === "idx" ? "stocks_idx" : "stocks_us";
+  const cachedMarket = state.stocksCacheByMarket[market];
+  const isFresh =
+    !options.force && cachedMarket && Date.now() - state.tabLoadedAt[cacheKey] < TAB_FRESH_MS;
 
   titleEl.textContent =
-    state.stockMarket === "idx"
+    market === "idx"
       ? "Saham Populer Indonesia (IDX)"
       : "Saham Populer Internasional (US)";
-  if (state.stocksItems.length === 0 || !options.preserveSelection) {
-    listEl.innerHTML = `<div class="empty-state">Memuat harga saham...</div>`;
+
+  if (cachedMarket) {
+    state.stocksItems = cachedMarket.items ?? [];
+    updateMarketPulse(market, state.stocksItems);
+    renderSectorChips(state.stocksItems);
+    renderStocksList(state.stocksItems);
+  } else {
+    renderSkeletonRows(listEl, 6, false);
   }
 
+  if (isFresh) {
+    if (!options.preserveSelection && seqBefore === state.selectionSeq) {
+      const currentInList = state.stocksItems.find((i) => i.lookupKey === state.selectedAsset.lookupKey);
+      const target = currentInList ?? state.stocksItems[0];
+      if (target && (!currentInList || state.selectedAsset.assetClass !== "stock")) {
+        const seq = ++state.selectionSeq;
+        renderDetailTicker(target.ticker, {
+          symbol: target.symbol,
+          lookupKey: target.lookupKey,
+          name: target.name,
+          assetClass: "stock",
+          currency: target.currency,
+          exchange: target.exchange,
+          sector: target.sector,
+        });
+        highlightSelectedRow();
+        void loadChartForSelected(seq);
+      }
+      connectLiveStream();
+    }
+    return;
+  }
+
+  beginLoading();
   try {
-    const data = await apiFetch(`/api/stocks?market=${state.stockMarket}`);
+    const data = await apiFetch(`/api/stocks?market=${market}`);
+    state.stocksCacheByMarket[market] = data;
+    state.tabLoadedAt[cacheKey] = Date.now();
+    if (state.stockMarket !== market) return;
+
     state.stocksItems = data.items ?? [];
 
     if (data.unconfiguredHint) {
@@ -556,12 +649,11 @@ async function loadStocksTab(options = { preserveSelection: false }) {
       banner.classList.add("hidden");
     }
 
-    updateMarketPulse(state.stockMarket, state.stocksItems);
+    updateMarketPulse(market, state.stocksItems);
     renderSectorChips(state.stocksItems);
     renderStocksList(state.stocksItems);
     document.getElementById("lastSyncText").textContent = `Update ${formatTimeLocal(data.updatedAt)}`;
 
-    // Never overwrite the detail card if caller preserved selection or user picked another asset mid-flight
     if (!options.preserveSelection && seqBefore === state.selectionSeq) {
       const currentInList = state.stocksItems.find(
         (i) => i.lookupKey === state.selectedAsset.lookupKey,
@@ -584,7 +676,11 @@ async function loadStocksTab(options = { preserveSelection: false }) {
       connectLiveStream();
     }
   } catch (err) {
-    listEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    if (!cachedMarket) {
+      listEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    }
+  } finally {
+    endLoading();
   }
 }
 
@@ -726,13 +822,27 @@ function connectLiveStream() {
 // =========================================================================
 // Crypto Tab
 // =========================================================================
-async function loadCryptoTab() {
+async function loadCryptoTab(force = false) {
   const indodaxEl = document.getElementById("indodaxList");
-  indodaxEl.innerHTML = `<div class="empty-state">Memuat pasar crypto...</div>`;
+  const moversEl = document.getElementById("moversList");
+  const isFresh =
+    !force && state.cryptoData && Date.now() - state.tabLoadedAt.crypto < TAB_FRESH_MS;
 
+  if (isFresh) {
+    connectLiveStream();
+    return;
+  }
+
+  if (!state.cryptoData) {
+    renderSkeletonRows(indodaxEl, 5, false);
+    renderSkeletonRows(moversEl, 5, false);
+  }
+
+  beginLoading();
   try {
     const data = await apiFetch("/api/crypto");
     state.cryptoData = data;
+    state.tabLoadedAt.crypto = Date.now();
 
     if (data.global) {
       document.getElementById("kpiMarketCap").textContent = formatCompactUsd(data.global.marketCapUsd);
@@ -744,7 +854,12 @@ async function loadCryptoTab() {
     renderMoversList();
     connectLiveStream();
   } catch (err) {
-    indodaxEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    if (!state.cryptoData) {
+      indodaxEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+      moversEl.innerHTML = "";
+    }
+  } finally {
+    endLoading();
   }
 }
 
@@ -902,12 +1017,23 @@ function updateFxSelectorFlags() {
   if (toFlag && toEl) toFlag.innerHTML = getCurrencyFlagSvg(toEl.value);
 }
 
-async function loadFxTab() {
+async function loadFxTab(force = false) {
   updateFxSelectorFlags();
   const listEl = document.getElementById("fxRatesList");
-  listEl.innerHTML = `<div class="empty-state">Memuat kurs referensi...</div>`;
+  const isFresh = !force && state.fxData && Date.now() - state.tabLoadedAt.fx < TAB_FRESH_MS * 4;
+  if (isFresh) {
+    return;
+  }
+
+  if (!state.fxData) {
+    renderSkeletonRows(listEl, 6, true);
+  }
+
+  beginLoading();
   try {
     const data = await apiFetch("/api/fx?base=USD");
+    state.fxData = data;
+    state.tabLoadedAt.fx = Date.now();
     const rates = data.rates ?? [];
     document.getElementById("fxRefDate").textContent = rates[0]?.referenceDate ?? "-";
     listEl.innerHTML = "";
@@ -942,7 +1068,11 @@ async function loadFxTab() {
     }
     await runFxConversion();
   } catch (err) {
-    listEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    if (!state.fxData) {
+      listEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    }
+  } finally {
+    endLoading();
   }
 }
 
@@ -988,7 +1118,8 @@ async function loadPersonalTab() {
       return;
     }
 
-    wlEl.innerHTML = `<div class="empty-state">Memuat harga watchlist...</div>`;
+    renderSkeletonRows(wlEl, Math.min(localItems.length, 4), false);
+    beginLoading();
     const settled = await Promise.all(
       localItems.map(async (item) => {
         try {
@@ -1003,6 +1134,7 @@ async function loadPersonalTab() {
         }
       }),
     );
+    endLoading();
 
     wlEl.innerHTML = "";
     for (const { item, ticker } of settled) {
@@ -1036,8 +1168,9 @@ async function loadPersonalTab() {
   }
 
   authNotice.classList.add("hidden");
-  wlEl.innerHTML = `<div class="empty-state">Memuat watchlist...</div>`;
-  alEl.innerHTML = `<div class="empty-state">Memuat alerts...</div>`;
+  renderSkeletonRows(wlEl, 3, false);
+  renderSkeletonRows(alEl, 2, false);
+  beginLoading();
 
   try {
     const [wlRes, alRes] = await Promise.all([
@@ -1113,6 +1246,8 @@ async function loadPersonalTab() {
   } catch (err) {
     wlEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
     alEl.innerHTML = "";
+  } finally {
+    endLoading();
   }
 }
 
@@ -1277,13 +1412,13 @@ function setupControls() {
     haptic("medium");
     if (state.activeTab === "stocks") {
       if (state.selectedAsset.assetClass === "crypto") {
-        void loadStocksTab({ preserveSelection: true });
+        void loadStocksTab({ preserveSelection: true, force: true });
         void selectAsset(state.selectedAsset);
       } else {
-        void loadStocksTab();
+        void loadStocksTab({ preserveSelection: false, force: true });
       }
-    } else if (state.activeTab === "crypto") void loadCryptoTab();
-    else if (state.activeTab === "fx") void loadFxTab();
+    } else if (state.activeTab === "crypto") void loadCryptoTab(true);
+    else if (state.activeTab === "fx") void loadFxTab(true);
     else void loadPersonalTab();
   });
 
