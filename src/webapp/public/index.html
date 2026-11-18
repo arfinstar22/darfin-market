@@ -238,15 +238,22 @@
               <div class="fx-pair-row">
                 <div class="fx-select-wrap">
                   <label for="fxFrom">Dari</label>
-                  <select id="fxFrom">
-                    <option value="USD" selected>USD</option>
-                    <option value="IDR">IDR</option>
-                    <option value="EUR">EUR</option>
-                    <option value="SGD">SGD</option>
-                    <option value="JPY">JPY</option>
-                    <option value="GBP">GBP</option>
-                    <option value="AUD">AUD</option>
-                  </select>
+                  <div class="fx-select-with-flag">
+                    <span id="fxFromFlag" class="fx-flag-slot" aria-hidden="true"></span>
+                    <select id="fxFrom">
+                      <option value="USD" selected>🇺🇸 USD - Dolar AS</option>
+                      <option value="IDR">🇮🇩 IDR - Rupiah</option>
+                      <option value="EUR">🇪🇺 EUR - Euro</option>
+                      <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
+                      <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
+                      <option value="GBP">🇬🇧 GBP - Poundsterling</option>
+                      <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
+                      <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
+                      <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
+                      <option value="KRW">🇰🇷 KRW - Won Korea</option>
+                      <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                    </select>
+                  </div>
                 </div>
                 <button type="button" id="fxSwapBtn" class="icon-btn swap-btn" aria-label="Tukar mata uang">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -258,15 +265,22 @@
                 </button>
                 <div class="fx-select-wrap">
                   <label for="fxTo">Ke</label>
-                  <select id="fxTo">
-                    <option value="IDR" selected>IDR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="SGD">SGD</option>
-                    <option value="JPY">JPY</option>
-                    <option value="GBP">GBP</option>
-                    <option value="AUD">AUD</option>
-                  </select>
+                  <div class="fx-select-with-flag">
+                    <span id="fxToFlag" class="fx-flag-slot" aria-hidden="true"></span>
+                    <select id="fxTo">
+                      <option value="IDR" selected>🇮🇩 IDR - Rupiah</option>
+                      <option value="USD">🇺🇸 USD - Dolar AS</option>
+                      <option value="EUR">🇪🇺 EUR - Euro</option>
+                      <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
+                      <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
+                      <option value="GBP">🇬🇧 GBP - Poundsterling</option>
+                      <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
+                      <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
+                      <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
+                      <option value="KRW">🇰🇷 KRW - Won Korea</option>
+                      <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <button type="button" id="fxConvertBtn" class="action-btn primary full">Hitung Konversi</button>

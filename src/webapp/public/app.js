@@ -632,9 +632,76 @@ function renderMoversList() {
 }
 
 // =========================================================================
-// FX Tab
+// FX Tab (with crisp SVG country flags for consistent cross-OS rendering)
 // =========================================================================
+const FX_META = {
+  IDR: {
+    name: "Rupiah Indonesia",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="10" fill="#CE1126"/><rect y="10" width="28" height="10" fill="#FFFFFF"/></svg>`,
+  },
+  USD: {
+    name: "Dolar Amerika Serikat",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#FFFFFF"/><path fill="#B22234" d="M0 0h28v2H0zm0 4h28v2H0zm0 4h28v2H0zm0 4h28v2H0zm0 4h28v2H0z"/><rect width="12" height="10" fill="#3C3B6E"/><circle cx="3" cy="2.5" r="0.8" fill="#FFF"/><circle cx="6" cy="2.5" r="0.8" fill="#FFF"/><circle cx="9" cy="2.5" r="0.8" fill="#FFF"/><circle cx="4.5" cy="5" r="0.8" fill="#FFF"/><circle cx="7.5" cy="5" r="0.8" fill="#FFF"/><circle cx="3" cy="7.5" r="0.8" fill="#FFF"/><circle cx="6" cy="7.5" r="0.8" fill="#FFF"/><circle cx="9" cy="7.5" r="0.8" fill="#FFF"/></svg>`,
+  },
+  EUR: {
+    name: "Euro (Uni Eropa)",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#003399"/><circle cx="14" cy="4.5" r="1" fill="#FFCC00"/><circle cx="18" cy="6" r="1" fill="#FFCC00"/><circle cx="19.5" cy="10" r="1" fill="#FFCC00"/><circle cx="18" cy="14" r="1" fill="#FFCC00"/><circle cx="14" cy="15.5" r="1" fill="#FFCC00"/><circle cx="10" cy="14" r="1" fill="#FFCC00"/><circle cx="8.5" cy="10" r="1" fill="#FFCC00"/><circle cx="10" cy="6" r="1" fill="#FFCC00"/></svg>`,
+  },
+  SGD: {
+    name: "Dolar Singapura",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="10" fill="#EF3340"/><rect y="10" width="28" height="10" fill="#FFFFFF"/><circle cx="6.2" cy="5" r="3" fill="#FFFFFF"/><circle cx="7.4" cy="5" r="2.5" fill="#EF3340"/><circle cx="9.2" cy="3.5" r="0.6" fill="#FFF"/><circle cx="10.4" cy="4.8" r="0.6" fill="#FFF"/><circle cx="9.8" cy="6.4" r="0.6" fill="#FFF"/><circle cx="8.2" cy="6.4" r="0.6" fill="#FFF"/><circle cx="7.8" cy="4.8" r="0.6" fill="#FFF"/></svg>`,
+  },
+  JPY: {
+    name: "Yen Jepang",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#FFFFFF"/><circle cx="14" cy="10" r="5.5" fill="#BC002D"/></svg>`,
+  },
+  GBP: {
+    name: "Poundsterling Inggris",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#012169"/><path stroke="#FFF" stroke-width="3.6" d="M0 0l28 20M28 0L0 20"/><path stroke="#C8102E" stroke-width="1.8" d="M0 0l28 20M28 0L0 20"/><path stroke="#FFF" stroke-width="5.2" d="M14 0v20M0 10h28"/><path stroke="#C8102E" stroke-width="3" d="M14 0v20M0 10h28"/></svg>`,
+  },
+  AUD: {
+    name: "Dolar Australia",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#00008B"/><rect width="13" height="9" fill="#012169"/><path stroke="#FFF" stroke-width="2" d="M0 0l13 9M13 0L0 9M6.5 0v9M0 4.5h13"/><path stroke="#C8102E" stroke-width="1" d="M6.5 0v9M0 4.5h13"/><circle cx="21" cy="6" r="1.1" fill="#FFF"/><circle cx="23.5" cy="9.5" r="1.1" fill="#FFF"/><circle cx="19" cy="11" r="1.1" fill="#FFF"/><circle cx="21" cy="15" r="1.3" fill="#FFF"/><circle cx="6.5" cy="14.5" r="1.6" fill="#FFF"/></svg>`,
+  },
+  MYR: {
+    name: "Ringgit Malaysia",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#FFFFFF"/><path fill="#CC0001" d="M0 0h28v2H0zm0 4h28v2H0zm0 4h28v2H0zm0 4h28v2H0zm0 4h28v2H0z"/><rect width="13" height="10" fill="#010066"/><circle cx="5.4" cy="5" r="3" fill="#FFCC00"/><circle cx="6.5" cy="5" r="2.5" fill="#010066"/><circle cx="9.2" cy="5" r="1.5" fill="#FFCC00"/></svg>`,
+  },
+  CNY: {
+    name: "Yuan Tiongkok",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#DE2910"/><polygon points="5,2.5 5.9,5.3 8.8,5.3 6.5,7 7.4,9.8 5,8.1 2.6,9.8 3.5,7 1.2,5.3 4.1,5.3" fill="#FFDE00"/><circle cx="10.5" cy="3" r="0.8" fill="#FFDE00"/><circle cx="12" cy="5" r="0.8" fill="#FFDE00"/><circle cx="12" cy="7.5" r="0.8" fill="#FFDE00"/><circle cx="10.5" cy="9.5" r="0.8" fill="#FFDE00"/></svg>`,
+  },
+  KRW: {
+    name: "Won Korea Selatan",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#FFFFFF"/><circle cx="14" cy="10" r="4.6" fill="#CD2E3A"/><path d="M9.4 10a4.6 4.6 0 0 0 9.2 0a2.3 2.3 0 0 1-4.6 0a2.3 2.3 0 0 0-4.6 0z" fill="#0047A0"/><path stroke="#000" stroke-width="1.2" d="M4 5l3-2M21 3l3 2M4 15l3 2M21 17l3-2"/></svg>`,
+  },
+  SAR: {
+    name: "Riyal Arab Saudi",
+    svg: `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#006C35"/><rect x="6" y="7" width="16" height="2.4" rx="1" fill="#FFFFFF"/><rect x="8" y="12.2" width="12" height="1.4" rx="0.7" fill="#FFFFFF"/></svg>`,
+  },
+};
+
+function getCurrencyFlagSvg(code) {
+  const c = (code || "").toUpperCase();
+  if (FX_META[c]) return FX_META[c].svg;
+  return `<svg class="flag-svg" viewBox="0 0 28 20"><rect width="28" height="20" fill="#1e293b"/><text x="14" y="13.5" text-anchor="middle" fill="#f8fafc" font-size="8" font-family="monospace">${c.slice(0, 3)}</text></svg>`;
+}
+
+function getCurrencyName(code) {
+  return FX_META[(code || "").toUpperCase()]?.name ?? code;
+}
+
+function updateFxSelectorFlags() {
+  const fromEl = document.getElementById("fxFrom");
+  const toEl = document.getElementById("fxTo");
+  const fromFlag = document.getElementById("fxFromFlag");
+  const toFlag = document.getElementById("fxToFlag");
+  if (fromFlag && fromEl) fromFlag.innerHTML = getCurrencyFlagSvg(fromEl.value);
+  if (toFlag && toEl) toFlag.innerHTML = getCurrencyFlagSvg(toEl.value);
+}
+
 async function loadFxTab() {
+  updateFxSelectorFlags();
   const listEl = document.getElementById("fxRatesList");
   listEl.innerHTML = `<div class="empty-state">Memuat kurs referensi...</div>`;
   try {
@@ -643,16 +710,33 @@ async function loadFxTab() {
     document.getElementById("fxRefDate").textContent = rates[0]?.referenceDate ?? "-";
     listEl.innerHTML = "";
     for (const r of rates) {
-      const div = document.createElement("div");
-      div.className = "personal-card";
-      div.innerHTML = `
-        <div>
-          <div class="ticker-sym">1 ${r.base} -> ${r.quote}</div>
-          <div class="ticker-sub">Referensi ${r.referenceDate}</div>
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ticker-row";
+      btn.innerHTML = `
+        <div class="fx-row-left">
+          ${getCurrencyFlagSvg(r.quote)}
+          <div class="ticker-left">
+            <div class="ticker-sym">1 ${r.base} -> ${r.quote}</div>
+            <div class="ticker-sub">${getCurrencyName(r.quote)}</div>
+          </div>
         </div>
-        <div class="ticker-price mono">${formatPrice(r.rate, r.quote)}</div>
+        <div class="ticker-right">
+          <div class="ticker-price mono">${formatPrice(r.rate, r.quote)}</div>
+          <div class="ticker-sub">Ref ${r.referenceDate}</div>
+        </div>
       `;
-      listEl.appendChild(div);
+      btn.addEventListener("click", () => {
+        haptic("light");
+        document.getElementById("fxFrom").value = r.base;
+        const toSel = document.getElementById("fxTo");
+        if ([...toSel.options].some((o) => o.value === r.quote)) {
+          toSel.value = r.quote;
+        }
+        updateFxSelectorFlags();
+        void runFxConversion();
+      });
+      listEl.appendChild(btn);
     }
     await runFxConversion();
   } catch (err) {
@@ -661,6 +745,7 @@ async function loadFxTab() {
 }
 
 async function runFxConversion() {
+  updateFxSelectorFlags();
   const amount = document.getElementById("fxAmount").value.trim();
   const from = document.getElementById("fxFrom").value;
   const to = document.getElementById("fxTo").value;
@@ -671,8 +756,8 @@ async function runFxConversion() {
       `/api/convert?amount=${encodeURIComponent(amount)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     );
     const c = data.conversion;
-    document.getElementById("fxResultValue").textContent =
-      `${c.amount} ${c.base} = ${formatPrice(c.convertedAmount, c.quote)}`;
+    document.getElementById("fxResultValue").innerHTML =
+      `<span class="fx-result-head">${getCurrencyFlagSvg(c.base)}<span>${c.amount} ${c.base} =</span>${getCurrencyFlagSvg(c.quote)}<span>${formatPrice(c.convertedAmount, c.quote)}</span></span>`;
     document.getElementById("fxResultRate").textContent =
       `Kurs 1 ${c.base} = ${formatPrice(c.rate, c.quote)} | Ref ${c.referenceDate}`;
   } catch (err) {
@@ -907,6 +992,8 @@ function setupControls() {
   });
 
   document.getElementById("fxConvertBtn").addEventListener("click", () => void runFxConversion());
+  document.getElementById("fxFrom").addEventListener("change", () => void runFxConversion());
+  document.getElementById("fxTo").addEventListener("change", () => void runFxConversion());
   document.getElementById("fxSwapBtn").addEventListener("click", () => {
     const fromEl = document.getElementById("fxFrom");
     const toEl = document.getElementById("fxTo");
@@ -915,6 +1002,7 @@ function setupControls() {
     toEl.value = tmp;
     void runFxConversion();
   });
+  updateFxSelectorFlags();
 
   // Watchlist button
   document.getElementById("btnAddWatchlist").addEventListener("click", async () => {

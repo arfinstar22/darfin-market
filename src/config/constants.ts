@@ -74,4 +74,16 @@ export const SUPPORTED_TIMEZONES = [
   "UTC",
 ] as const;
 
-export const POPULAR_FX_QUOTES = ["IDR", "USD", "EUR", "SGD", "JPY", "GBP", "AUD"] as const;
+export const POPULAR_FX_QUOTES = [
+  "IDR",
+  "USD",
+  "EUR",
+  "SGD",
+  "JPY",
+  "GBP",
+  "AUD",
+  "MYR",
+  "CNY",
+  "KRW",
+  "SAR",
+] as const;
