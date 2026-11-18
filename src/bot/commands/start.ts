@@ -3,19 +3,22 @@ import { buildMainMenuKeyboard } from "../keyboards/main-menu.js";
 
 export async function handleStart(ctx: BotContext): Promise<void> {
   const name = ctx.from?.first_name ? `, ${ctx.from.first_name}` : "";
+  const kb = buildMainMenuKeyboard();
+
   const message = [
     `👋 Selamat datang di DARFIN MARKET${name}.`,
     "",
-    "Market data, watchlist, and alerts langsung dari Telegram.",
+    "Pantau saham Indonesia (IDX), saham Global (US), crypto, kurs mata uang, grafik interaktif, watchlist, dan price alerts langsung lewat Mini App di bawah ini.",
     "",
-    "Yang bisa kamu pantau:",
-    "• Crypto lokal (INDODAX IDR) & global (CoinPaprika)",
-    "• Saham Indonesia (IDX) & Internasional (US/Global)",
-    "• Kurs referensi mata uang & konversi (Frankfurter)",
-    "• Grafik historis, Watchlist personal, dan Price Alerts",
-    "",
-    "Catatan: bot ini bersifat read-only untuk informasi pasar, bukan broker, exchange, atau rekomendasi investasi.",
+    "Catatan: informasi pasar bersifat read-only, bukan broker atau rekomendasi investasi.",
   ].join("\n");
 
-  await ctx.reply(message, { reply_markup: buildMainMenuKeyboard() });
+  if (!kb) {
+    await ctx.reply(
+      `${message}\n\n⚠️ URL Mini App (WEBAPP_URL / RENDER_EXTERNAL_URL) belum aktif dengan HTTPS.`,
+    );
+    return;
+  }
+
+  await ctx.reply(message, { reply_markup: kb });
 }

@@ -44,22 +44,9 @@ async function main() {
 
   await bot.api
     .setMyCommands([
-      { command: "start", description: "Menu utama DARFIN MARKET" },
-      { command: "webapp", description: "Buka Mini App Live Terminal" },
-      { command: "market", description: "Ringkasan pasar crypto & kurs" },
-      { command: "crypto", description: "Cek harga crypto (INDODAX & Global)" },
-      { command: "stocks", description: "Daftar saham populer IDX & Global" },
-      { command: "stock", description: "Cek harga saham (contoh: /stock BBCA)" },
-      { command: "search", description: "Cari aset crypto atau saham" },
-      { command: "top", description: "Top gainers / losers 24h" },
-      { command: "fx", description: "Kurs referensi mata uang" },
-      { command: "convert", description: "Konversi mata uang" },
-      { command: "chart", description: "Grafik historis aset" },
-      { command: "watchlist", description: "Daftar pantauan pribadi" },
-      { command: "alerts", description: "Kelola alert harga" },
-      { command: "settings", description: "Pengaturan zona waktu" },
+      { command: "start", description: "Buka DARFIN MARKET" },
       { command: "status", description: "Status layanan & provider" },
-      { command: "help", description: "Panduan lengkap command" },
+      { command: "delete_my_data", description: "Hapus data akun saya" },
     ])
     .catch((err) => {
       logger.warn({ err: String(err) }, "Could not register Telegram command menu");
@@ -72,7 +59,7 @@ async function main() {
       .setChatMenuButton({
         menu_button: {
           type: "web_app",
-          text: "Live Terminal",
+          text: "DARFIN MARKET",
           web_app: { url: webAppUrl },
         },
       })

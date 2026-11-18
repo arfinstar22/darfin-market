@@ -38,5 +38,5 @@ describe("Live public provider schema verification (INDODAX, CoinPaprika, Frankf
       const conv = await fx.convert("100", "USD", "IDR");
       expect(Number(conv.convertedAmount)).toBeGreaterThan(100_000);
     }
-  });
+  }, 30_000);
 });

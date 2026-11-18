@@ -1,4 +1,5 @@
-import { Api } from "grammy";
+import { Api, InlineKeyboard } from "grammy";
+import { getValidHttpsWebAppUrl } from "../bot/commands/webapp.js";
 import { formatTriggeredAlertNotification } from "../bot/formatters/messages.js";
 import type { AppContainer } from "../container.js";
 import type { ActiveAlertWithUser } from "../db/repositories/alert.repo.js";
@@ -11,10 +12,15 @@ async function sendTelegramNotificationSafe(
   api: Api,
   telegramUserId: bigint,
   text: string,
+  replyMarkup?: InlineKeyboard,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await api.sendMessage(Number(telegramUserId), text);
+      await api.sendMessage(
+        Number(telegramUserId),
+        text,
+        replyMarkup ? { reply_markup: replyMarkup } : undefined,
+      );
       return true;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
@@ -78,7 +84,13 @@ export async function processAlertsForProvider(
           observedAt: observedAt.toISOString(),
           timezone: alert.userTimezone,
         });
-        await sendTelegramNotificationSafe(telegramApi, alert.telegramUserId, message);
+        const deepUrl = getValidHttpsWebAppUrl(
+          `?asset=${encodeURIComponent(ticker.assetId)}&type=${ticker.assetClass}`,
+        );
+        const kb = deepUrl
+          ? new InlineKeyboard().webApp("📱 Buka di DARFIN MARKET", deepUrl)
+          : undefined;
+        await sendTelegramNotificationSafe(telegramApi, alert.telegramUserId, message, kb);
       }
     } else if (evaluation.reason !== "stale_data" && evaluation.reason !== "invalid_price") {
       await container.repos.alerts.updateObservation(alert.id, ticker.price, observedAt);
