@@ -172,6 +172,14 @@ describe("Telegram Mini App HMAC auth and HTTP API", () => {
       expect(cssRes.status).toBe(200);
       const jsRes = await fetch(`${baseUrl}/app.js`);
       expect(jsRes.status).toBe(200);
+
+      const iconRes = await fetch(`${baseUrl}/assets/logo-icon.jpg`);
+      expect(iconRes.status).toBe(200);
+      expect(iconRes.headers.get("content-type")).toBe("image/jpeg");
+
+      const fullRes = await fetch(`${baseUrl}/assets/logo-full.jpg`);
+      expect(fullRes.status).toBe(200);
+      expect(fullRes.headers.get("content-type")).toBe("image/jpeg");
     });
 
     it("returns IDX stock quotes on /api/stocks?market=idx", async () => {

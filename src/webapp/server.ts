@@ -19,8 +19,20 @@ const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".json": "application/json; charset=utf-8",
 };
+
+const ALLOWED_STATIC_FILES = new Set([
+  "index.html",
+  "styles.css",
+  "app.js",
+  "assets/logo-icon.jpg",
+  "assets/logo-full.jpg",
+]);
 
 const addWatchlistBodySchema = z.object({
   symbol: z.string().trim().min(1).max(40),
@@ -113,15 +125,16 @@ export function createWebAppServer(options: WebAppServerOptions): Server {
       const parsedUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const pathname = parsedUrl.pathname;
 
-      // Static frontend files
-      if (method === "GET" && (pathname === "/" || pathname === "/index.html" || pathname === "/styles.css" || pathname === "/app.js")) {
-        const fileName = pathname === "/" ? "index.html" : pathname.slice(1);
-        const filePath = path.join(publicDir, fileName);
+      // Static frontend files & brand assets (explicit allowlist prevents path traversal)
+      const staticRelPath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+      if (method === "GET" && ALLOWED_STATIC_FILES.has(staticRelPath)) {
+        const filePath = path.join(publicDir, staticRelPath);
         const content = await readFile(filePath);
-        const ext = path.extname(fileName);
+        const ext = path.extname(staticRelPath);
+        const isImage = ext === ".jpg" || ext === ".jpeg" || ext === ".png" || ext === ".webp";
         res.writeHead(200, {
           "Content-Type": MIME_TYPES[ext] ?? "application/octet-stream",
-          "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=300",
+          "Cache-Control": ext === ".html" ? "no-cache" : isImage ? "public, max-age=86400" : "public, max-age=300",
           "X-Content-Type-Options": "nosniff",
           "Referrer-Policy": "no-referrer",
         });

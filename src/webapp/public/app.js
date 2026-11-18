@@ -975,7 +975,15 @@ function setupControls() {
   });
 }
 
+function hideSplash() {
+  const el = document.getElementById("splashScreen");
+  if (!el || el.classList.contains("done")) return;
+  el.classList.add("done");
+  setTimeout(() => el.remove(), 300);
+}
+
 async function bootstrap() {
+  const splashGuard = setTimeout(hideSplash, 1400);
   setupChartScrubber();
   setupSearch();
   setupControls();
@@ -985,23 +993,28 @@ async function bootstrap() {
   const deepAsset = params.get("asset");
   const deepType = params.get("type");
 
-  if (deepAsset) {
-    if (deepType === "stock" && !deepAsset.includes(":IDX") && !deepAsset.endsWith(".JK")) {
-      state.stockMarket = "us";
-      document.getElementById("btnMarketIdx").classList.remove("active");
-      document.getElementById("btnMarketUs").classList.add("active");
+  try {
+    if (deepAsset) {
+      if (deepType === "stock" && !deepAsset.includes(":IDX") && !deepAsset.endsWith(".JK")) {
+        state.stockMarket = "us";
+        document.getElementById("btnMarketIdx").classList.remove("active");
+        document.getElementById("btnMarketUs").classList.add("active");
+      }
+      await loadStocksTab();
+      await selectAsset({
+        symbol: deepAsset.replace(":IDX", "").replace(".JK", ""),
+        lookupKey: deepAsset,
+        name: deepAsset,
+        assetClass: deepType === "crypto" ? "crypto" : "stock",
+        currency: deepAsset.includes(":IDX") || deepAsset.endsWith(".JK") ? "IDR" : "USD",
+        exchange: deepAsset.includes(":IDX") ? "IDX" : deepType === "crypto" ? "CRYPTO" : "US",
+      });
+    } else {
+      await loadStocksTab();
     }
-    await loadStocksTab();
-    await selectAsset({
-      symbol: deepAsset.replace(":IDX", "").replace(".JK", ""),
-      lookupKey: deepAsset,
-      name: deepAsset,
-      assetClass: deepType === "crypto" ? "crypto" : "stock",
-      currency: deepAsset.includes(":IDX") || deepAsset.endsWith(".JK") ? "IDR" : "USD",
-      exchange: deepAsset.includes(":IDX") ? "IDX" : deepType === "crypto" ? "CRYPTO" : "US",
-    });
-  } else {
-    await loadStocksTab();
+  } finally {
+    clearTimeout(splashGuard);
+    hideSplash();
   }
 }
 
