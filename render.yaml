@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: darfin-market
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_NAME
+        value: DARFIN MARKET
+      - key: APP_TIMEZONE
+        value: Asia/Makassar
+      - key: LOG_LEVEL
+        value: info
+      - key: RUN_EMBEDDED_WORKER
+        value: "true"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ADMIN_IDS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
