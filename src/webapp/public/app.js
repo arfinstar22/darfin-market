@@ -8,10 +8,14 @@ if (tg) {
 }
 
 const initData = tg?.initData ?? "";
+const LOCAL_WATCHLIST_KEY = "darfin_local_watchlist_v1";
 
 const state = {
   activeTab: "stocks",
   stockMarket: "idx", // idx | us
+  selectedSector: "Semua",
+  usdIdrRate: null,
+  usdIdrDate: null,
   selectedAsset: {
     symbol: "BBCA",
     lookupKey: "BBCA:IDX",
@@ -19,6 +23,7 @@ const state = {
     assetClass: "stock",
     currency: "IDR",
     exchange: "IDX",
+    sector: "Perbankan",
   },
   chartRange: "7d",
   chartPoints: [],
@@ -28,6 +33,24 @@ const state = {
   moverDir: "gainers",
   eventSource: null,
 };
+
+function getLocalWatchlist() {
+  try {
+    const raw = localStorage.getItem(LOCAL_WATCHLIST_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalWatchlist(items) {
+  try {
+    localStorage.setItem(LOCAL_WATCHLIST_KEY, JSON.stringify(items.slice(0, 20)));
+  } catch {
+    // ignore storage quota errors
+  }
+}
 
 function haptic(style = "light") {
   try {
@@ -253,6 +276,7 @@ function renderDetailTicker(ticker, fallbackMeta) {
   const sym = ticker?.symbol ?? fallbackMeta.symbol;
   const ex = ticker?.exchange ?? fallbackMeta.exchange ?? (fallbackMeta.assetClass === "crypto" ? "CRYPTO" : "STOCK");
   const curr = ticker?.quoteCurrency ?? fallbackMeta.currency ?? "USD";
+  const sector = fallbackMeta.sector ?? state.stocksItems.find((i) => i.symbol === sym)?.sector ?? null;
 
   state.selectedAsset = {
     symbol: sym,
@@ -261,22 +285,53 @@ function renderDetailTicker(ticker, fallbackMeta) {
     assetClass: ticker?.assetClass ?? fallbackMeta.assetClass ?? "stock",
     currency: curr,
     exchange: ex,
+    sector,
   };
 
   document.getElementById("detailSymbol").textContent = sym;
   document.getElementById("detailExchange").textContent = ex;
   document.getElementById("detailName").textContent = state.selectedAsset.name;
 
-  const marketPill = document.getElementById("detailMarketState");
-  if (ticker?.isMarketOpen !== undefined) {
-    marketPill.classList.remove("hidden");
-    marketPill.classList.toggle("open", ticker.isMarketOpen);
-    marketPill.textContent = ticker.isMarketOpen ? "BUKA" : "TUTUP";
+  const sectorPill = document.getElementById("detailSector");
+  if (sector) {
+    sectorPill.textContent = sector;
+    sectorPill.classList.remove("hidden");
   } else {
-    marketPill.classList.add("hidden");
+    sectorPill.classList.add("hidden");
+  }
+
+  const sessionNote = document.getElementById("detailMarketSession");
+  if (ticker?.isMarketOpen !== undefined) {
+    sessionNote.classList.remove("hidden");
+    sessionNote.classList.toggle("open", ticker.isMarketOpen);
+    if (ex === "IDX") {
+      sessionNote.textContent = ticker.isMarketOpen
+        ? "Bursa IDX sedang buka (09:00-16:00 WIB)"
+        : "Bursa IDX tutup - menampilkan harga penutupan terakhir";
+    } else {
+      sessionNote.textContent = ticker.isMarketOpen
+        ? "Bursa US sedang buka"
+        : "Bursa US tutup - menampilkan harga perdagangan terakhir";
+    }
+  } else if (state.selectedAsset.assetClass === "crypto") {
+    sessionNote.classList.remove("hidden");
+    sessionNote.classList.add("open");
+    sessionNote.textContent = "Pasar crypto aktif 24 jam setiap hari";
+  } else {
+    sessionNote.classList.add("hidden");
   }
 
   document.getElementById("detailPrice").textContent = ticker ? formatPrice(ticker.price, curr) : "-";
+
+  // Auto IDR estimate for USD stocks & USD crypto using Frankfurter reference rate
+  const idrEstEl = document.getElementById("detailIdrEst");
+  if (ticker && curr === "USD" && state.usdIdrRate && Number(ticker.price) > 0) {
+    const estIdr = Number(ticker.price) * state.usdIdrRate;
+    idrEstEl.textContent = `≈ ${formatPrice(estIdr, "IDR")} (est. kurs ref)`;
+    idrEstEl.classList.remove("hidden");
+  } else {
+    idrEstEl.classList.add("hidden");
+  }
 
   const chEl = document.getElementById("detailChange");
   if (ticker?.change24hPercent !== undefined) {
@@ -289,14 +344,43 @@ function renderDetailTicker(ticker, fallbackMeta) {
     chEl.textContent = "-";
   }
 
+  // Visual Daily Range Meter
+  const rangeWrap = document.getElementById("dailyRangeWrap");
+  const lowNum = ticker?.low24h ? Number(ticker.low24h) : null;
+  const highNum = ticker?.high24h ? Number(ticker.high24h) : null;
+  const priceNum = ticker?.price ? Number(ticker.price) : null;
+  if (lowNum !== null && highNum !== null && priceNum !== null && highNum > lowNum) {
+    const posPct = Math.min(100, Math.max(0, ((priceNum - lowNum) / (highNum - lowNum)) * 100));
+    rangeWrap.classList.remove("hidden");
+    document.getElementById("rangeTrackFill").style.width = `${posPct.toFixed(1)}%`;
+    document.getElementById("rangeTrackDot").style.left = `${posPct.toFixed(1)}%`;
+    document.getElementById("rangeLowEnd").textContent = `Terendah: ${formatPrice(lowNum, curr)}`;
+    document.getElementById("rangeHighEnd").textContent = `Tertinggi: ${formatPrice(highNum, curr)}`;
+    document.getElementById("rangeMeterCaption").textContent =
+      posPct >= 75
+        ? "Mendekati puncak harian"
+        : posPct <= 25
+          ? "Mendekati dasar harian"
+          : "Di tengah rentang harian";
+  } else {
+    rangeWrap.classList.add("hidden");
+  }
+
   document.getElementById("metricOpen").textContent = ticker?.open ? formatPrice(ticker.open, curr) : "-";
   document.getElementById("metricHigh").textContent = ticker?.high24h ? formatPrice(ticker.high24h, curr) : "-";
   document.getElementById("metricLow").textContent = ticker?.low24h ? formatPrice(ticker.low24h, curr) : "-";
-  document.getElementById("metricPrev").textContent = ticker?.previousClose
-    ? formatPrice(ticker.previousClose, curr)
-    : ticker?.buy
-      ? formatPrice(ticker.buy, curr)
-      : "-";
+
+  const prevLabel = document.getElementById("metricPrevLabel");
+  if (ticker?.previousClose) {
+    prevLabel.textContent = "Tutup Kemarin";
+    document.getElementById("metricPrev").textContent = formatPrice(ticker.previousClose, curr);
+  } else if (ticker?.buy) {
+    prevLabel.textContent = "Harga Beli";
+    document.getElementById("metricPrev").textContent = formatPrice(ticker.buy, curr);
+  } else {
+    prevLabel.textContent = "Tutup Kemarin";
+    document.getElementById("metricPrev").textContent = "-";
+  }
 
   document.getElementById("detailSource").textContent = ticker?.sourceLabel ?? "Sumber belum aktif";
   document.getElementById("detailTime").textContent = ticker
@@ -359,8 +443,70 @@ function highlightSelectedRow() {
 }
 
 // =========================================================================
-// Stocks Tab + Live SSE Stream
+// Market Pulse + Sector Filter + Stocks Tab + Live SSE Stream
 // =========================================================================
+async function loadPulseUsdIdr() {
+  try {
+    const data = await apiFetch("/api/fx?base=USD");
+    const idr = (data.rates ?? []).find((r) => r.quote === "IDR");
+    if (idr) {
+      state.usdIdrRate = Number(idr.rate);
+      state.usdIdrDate = idr.referenceDate;
+      document.getElementById("pulseFxVal").textContent = formatPrice(idr.rate, "IDR");
+      document.getElementById("pulseFxSub").textContent = `Ref ${idr.referenceDate}`;
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
+function updateMarketPulse(market, items) {
+  const valid = items
+    .map((i) => i.ticker?.change24hPercent)
+    .filter((v) => v !== undefined && Number.isFinite(Number(v)))
+    .map(Number);
+
+  const valEl = document.getElementById(market === "idx" ? "pulseIdxVal" : "pulseUsVal");
+  const subEl = document.getElementById(market === "idx" ? "pulseIdxSub" : "pulseUsSub");
+  if (!valEl || !subEl) return;
+
+  if (valid.length === 0) {
+    valEl.textContent = "-";
+    valEl.className = "pulse-val mono";
+    return;
+  }
+
+  const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+  const upCount = valid.filter((v) => v > 0).length;
+  const downCount = valid.filter((v) => v < 0).length;
+  valEl.textContent = `${avg >= 0 ? "+" : ""}${avg.toFixed(2)}%`;
+  valEl.className = `pulse-val mono ${avg > 0 ? "up" : avg < 0 ? "down" : ""}`;
+  subEl.textContent = `${upCount} naik · ${downCount} turun`;
+}
+
+function renderSectorChips(items) {
+  const bar = document.getElementById("sectorFilterBar");
+  if (!bar) return;
+  const sectors = ["Semua", ...Array.from(new Set(items.map((i) => i.sector).filter(Boolean)))];
+  if (!sectors.includes(state.selectedSector)) {
+    state.selectedSector = "Semua";
+  }
+  bar.innerHTML = "";
+  for (const sector of sectors) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `sector-chip ${sector === state.selectedSector ? "active" : ""}`;
+    btn.textContent = sector;
+    btn.addEventListener("click", () => {
+      haptic("light");
+      state.selectedSector = sector;
+      renderSectorChips(state.stocksItems);
+      renderStocksList(state.stocksItems);
+    });
+    bar.appendChild(btn);
+  }
+}
+
 async function loadStocksTab() {
   const listEl = document.getElementById("stocksList");
   const titleEl = document.getElementById("stocksListTitle");
@@ -383,10 +529,11 @@ async function loadStocksTab() {
       banner.classList.add("hidden");
     }
 
+    updateMarketPulse(state.stockMarket, state.stocksItems);
+    renderSectorChips(state.stocksItems);
     renderStocksList(state.stocksItems);
     document.getElementById("lastSyncText").textContent = `Update ${formatTimeLocal(data.updatedAt)}`;
 
-    // Select first stock in current market if selected asset belongs to another market
     const currentInList = state.stocksItems.find(
       (i) => i.lookupKey === state.selectedAsset.lookupKey,
     );
@@ -399,6 +546,7 @@ async function loadStocksTab() {
         assetClass: "stock",
         currency: target.currency,
         exchange: target.exchange,
+        sector: target.sector,
       });
       highlightSelectedRow();
       void loadChartForSelected();
@@ -414,7 +562,12 @@ function renderStocksList(items) {
   const listEl = document.getElementById("stocksList");
   listEl.innerHTML = "";
 
-  for (const item of items) {
+  const filtered =
+    state.selectedSector === "Semua"
+      ? items
+      : items.filter((i) => i.sector === state.selectedSector);
+
+  for (const item of filtered) {
     const t = item.ticker;
     const prev = state.previousPrices.get(item.lookupKey);
     const currPrice = t ? Number(t.price) : null;
@@ -433,17 +586,18 @@ function renderStocksList(items) {
     btn.type = "button";
     btn.className = `ticker-row ${flashClass} ${item.lookupKey === state.selectedAsset.lookupKey ? "selected" : ""}`;
     btn.dataset.key = item.lookupKey;
+    const sectorSub = item.sector ? `${item.sector} · ${item.name}` : item.name;
     btn.innerHTML = `
       <div class="ticker-left">
         <div class="ticker-sym-line">
           <span class="ticker-sym">${item.symbol}</span>
           <span class="ticker-badge">${item.exchange}</span>
         </div>
-        <div class="ticker-sub">${item.name}</div>
+        <div class="ticker-sub">${sectorSub}</div>
       </div>
       <div class="ticker-right">
         <div class="ticker-price mono">${t ? formatPrice(t.price, t.quoteCurrency) : "-"}</div>
-        <span class="change-pill mono ${pillClass}">${pctNum !== null ? formatPercent(pctNum) : "API key"}</span>
+        <span class="change-pill mono ${pillClass}">${pctNum !== null ? formatPercent(pctNum) : "Memuat"}</span>
       </div>
     `;
 
@@ -455,8 +609,11 @@ function renderStocksList(items) {
         assetClass: "stock",
         currency: item.currency,
         exchange: item.exchange,
+        sector: item.sector,
       });
-      document.getElementById("stockDetailCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (window.innerWidth < 1024) {
+        document.getElementById("stockDetailCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
     });
 
     listEl.appendChild(btn);
@@ -767,7 +924,7 @@ async function runFxConversion() {
 }
 
 // =========================================================================
-// Personal Watchlist & Alerts Tab (Telegram Authenticated)
+// Personal Watchlist & Alerts Tab (Telegram Cloud + Browser Local Fallback)
 // =========================================================================
 async function loadPersonalTab() {
   const authNotice = document.getElementById("authNotice");
@@ -776,8 +933,61 @@ async function loadPersonalTab() {
 
   if (!initData) {
     authNotice.classList.remove("hidden");
-    wlEl.innerHTML = `<div class="empty-state">Mode preview browser: buka dari Telegram Bot untuk sinkronisasi akun.</div>`;
-    alEl.innerHTML = `<div class="empty-state">Price alerts aktif saat dibuka lewat bot Telegram.</div>`;
+    const localItems = getLocalWatchlist();
+    document.getElementById("watchlistCount").textContent = `${localItems.length} aset (lokal)`;
+    document.getElementById("alertsCount").textContent = "Khusus Telegram";
+    alEl.innerHTML = `<div class="empty-state">Price Alerts mengirim notifikasi langsung ke chat Telegram. Buka lewat <strong>@darfinmarketbot</strong> untuk memasang alert harga.</div>`;
+
+    if (!localItems.length) {
+      wlEl.innerHTML = `<div class="empty-state">Watchlist masih kosong. Pilih saham atau crypto lalu tekan "+ Watchlist".</div>`;
+      return;
+    }
+
+    wlEl.innerHTML = `<div class="empty-state">Memuat harga watchlist...</div>`;
+    const settled = await Promise.all(
+      localItems.map(async (item) => {
+        try {
+          if (item.assetClass === "crypto") {
+            const res = await apiFetch(`/api/crypto/${encodeURIComponent(item.symbol)}`);
+            return { item, ticker: res.result.indodaxTicker ?? res.result.globalTicker };
+          }
+          const res = await apiFetch(`/api/stock/${encodeURIComponent(item.lookupKey || item.symbol)}`);
+          return { item, ticker: res.result.ticker };
+        } catch {
+          return { item, ticker: null };
+        }
+      }),
+    );
+
+    wlEl.innerHTML = "";
+    for (const { item, ticker } of settled) {
+      const card = document.createElement("div");
+      card.className = "personal-card";
+      const priceText = ticker ? formatPrice(ticker.price, ticker.quoteCurrency) : "N/A";
+      const pctText =
+        ticker?.change24hPercent !== undefined ? ` (${formatPercent(ticker.change24hPercent)})` : "";
+      card.innerHTML = `
+        <div>
+          <div class="ticker-sym">${item.symbol}/${item.currency || "IDR"}</div>
+          <div class="ticker-sub">${item.exchange || item.assetClass.toUpperCase()} · ${priceText}${pctText}</div>
+        </div>
+        <div class="personal-actions">
+          <button type="button" class="chip-btn" data-open-wl="${item.lookupKey}">Lihat</button>
+          <button type="button" class="chip-btn danger" data-rm-local="${item.lookupKey}">Hapus</button>
+        </div>
+      `;
+      card.querySelector("[data-open-wl]").addEventListener("click", () => {
+        switchTab("stocks");
+        void selectAsset(item);
+      });
+      card.querySelector("[data-rm-local]").addEventListener("click", () => {
+        const next = getLocalWatchlist().filter((w) => w.lookupKey !== item.lookupKey);
+        saveLocalWatchlist(next);
+        showToast(`${item.symbol} dihapus dari watchlist`);
+        void loadPersonalTab();
+      });
+      wlEl.appendChild(card);
+    }
     return;
   }
 
@@ -940,7 +1150,7 @@ function switchTab(tab) {
   state.activeTab = tab;
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
   document.getElementById(`panel-${tab}`).classList.remove("hidden");
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
+  document.querySelectorAll(".nav-btn, .dnav-btn").forEach((btn) => {
     const active = btn.dataset.tab === tab;
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-selected", String(active));
@@ -953,14 +1163,43 @@ function switchTab(tab) {
 }
 
 function setupControls() {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
+  document.querySelectorAll(".nav-btn, .dnav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  // Market pulse card shortcuts
+  document.getElementById("pulseIdxCard").addEventListener("click", () => {
+    state.stockMarket = "idx";
+    state.selectedSector = "Semua";
+    document.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.market === "idx"));
+    void loadStocksTab();
+  });
+  document.getElementById("pulseUsCard").addEventListener("click", () => {
+    state.stockMarket = "us";
+    state.selectedSector = "Semua";
+    document.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.market === "us"));
+    void loadStocksTab();
+  });
+  document.getElementById("pulseFxCard").addEventListener("click", () => switchTab("fx"));
+
+  // Beginner Glossary Modal
+  const guideModal = document.getElementById("guideModal");
+  document.getElementById("guideBtn").addEventListener("click", () => {
+    haptic("light");
+    guideModal.classList.remove("hidden");
+  });
+  document.getElementById("closeGuideModal").addEventListener("click", () => {
+    guideModal.classList.add("hidden");
+  });
+  guideModal.addEventListener("click", (e) => {
+    if (e.target === guideModal) guideModal.classList.add("hidden");
   });
 
   document.querySelectorAll(".seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       haptic("light");
       state.stockMarket = btn.dataset.market;
+      state.selectedSector = "Semua";
       document.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("active", b === btn));
       void loadStocksTab();
     });
@@ -1004,9 +1243,22 @@ function setupControls() {
   });
   updateFxSelectorFlags();
 
-  // Watchlist button
+  // Watchlist button (Telegram cloud or browser localStorage fallback)
   document.getElementById("btnAddWatchlist").addEventListener("click", async () => {
     haptic("medium");
+    if (!initData) {
+      const current = getLocalWatchlist();
+      const exists = current.some((i) => i.lookupKey === state.selectedAsset.lookupKey);
+      if (exists) {
+        showToast(`${state.selectedAsset.symbol} sudah ada di watchlist`);
+        return;
+      }
+      current.push({ ...state.selectedAsset });
+      saveLocalWatchlist(current);
+      showToast(`${state.selectedAsset.symbol} disimpan ke watchlist browser`);
+      return;
+    }
+
     try {
       const res = await apiFetch("/api/watchlist", {
         method: "POST",
@@ -1029,10 +1281,20 @@ function setupControls() {
   const modal = document.getElementById("alertModal");
   document.getElementById("btnOpenAlertModal").addEventListener("click", () => {
     haptic("light");
+    if (!initData) {
+      showToast("Buka lewat @darfinmarketbot di Telegram untuk memasang Price Alert");
+      return;
+    }
     document.getElementById("alertSymbolInput").value = state.selectedAsset.lookupKey;
     document.getElementById("alertCurrencyLabel").textContent = state.selectedAsset.currency;
     document.getElementById("alertTargetInput").value = "";
     modal.classList.remove("hidden");
+  });
+
+  window.addEventListener("resize", () => {
+    if (state.chartPoints.length > 0) {
+      drawChart(state.chartPoints, state.selectedAsset.currency, -1);
+    }
   });
 
   document.getElementById("closeAlertModal").addEventListener("click", () => {
@@ -1082,6 +1344,7 @@ async function bootstrap() {
   const deepType = params.get("type");
 
   try {
+    void loadPulseUsdIdr();
     if (deepAsset) {
       if (deepType === "stock" && !deepAsset.includes(":IDX") && !deepAsset.endsWith(".JK")) {
         state.stockMarket = "us";

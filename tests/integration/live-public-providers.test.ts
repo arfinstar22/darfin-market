@@ -6,7 +6,9 @@ import { IndodaxProvider } from "../../src/providers/indodax/provider.js";
 import { FxService } from "../../src/services/fx.service.js";
 import { MarketService } from "../../src/services/market.service.js";
 
-describe("Live public provider schema verification (INDODAX, CoinPaprika, Frankfurter)", () => {
+const liveSuite = process.env.RUN_LIVE_TESTS === "1" ? describe : describe.skip;
+
+liveSuite("Live public provider schema verification (INDODAX, CoinPaprika, Frankfurter)", () => {
   it("parses real live INDODAX, CoinPaprika, and Frankfurter payloads cleanly", async () => {
     const cache = new MemoryCacheService();
     const indodax = new IndodaxProvider(cache);

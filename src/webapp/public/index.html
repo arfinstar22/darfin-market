@@ -49,11 +49,33 @@
             <p class="brand-sub" id="lastSyncText">Menghubungkan feed...</p>
           </div>
         </div>
+
+        <!-- Desktop Top Navigation (>= 1024px) -->
+        <nav class="desktop-nav" role="tablist" aria-label="Navigasi desktop">
+          <button type="button" class="dnav-btn active" data-tab="stocks">Saham</button>
+          <button type="button" class="dnav-btn" data-tab="crypto">Crypto</button>
+          <button type="button" class="dnav-btn" data-tab="fx">Kurs</button>
+          <button type="button" class="dnav-btn" data-tab="personal">Pantauan</button>
+        </nav>
+
         <div class="topbar-actions">
           <span class="live-badge" id="streamBadge" aria-live="polite">
             <span class="live-dot" aria-hidden="true"></span>
             <span id="streamLabel">SYNC</span>
           </span>
+          <button
+            type="button"
+            class="icon-btn"
+            id="guideBtn"
+            aria-label="Kamus istilah pasar untuk pemula"
+            title="Kamus Pemula"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+          </button>
           <button
             type="button"
             class="icon-btn"
@@ -81,7 +103,7 @@
             type="search"
             autocomplete="off"
             spellcheck="false"
-            placeholder="Cari saham IDX (BBCA), US (NVDA), atau crypto (BTC)..."
+            placeholder="Cari saham IDX (BBCA, Bank), US (NVDA), atau crypto (BTC)..."
           />
           <button type="button" id="searchClearBtn" class="search-clear hidden" aria-label="Hapus pencarian">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -95,229 +117,303 @@
       <main class="main-content" id="mainContent">
         <!-- TAB 1: SAHAM (IDX & GLOBAL) -->
         <section id="panel-stocks" class="tab-panel" role="tabpanel" aria-labelledby="tab-stocks">
-          <div class="segmented" role="group" aria-label="Pilih bursa saham">
-            <button type="button" class="seg-btn active" data-market="idx" id="btnMarketIdx">
-              Indonesia (IDX)
+          <!-- Market Pulse Strip (Suhu Pasar Hari Ini) -->
+          <div class="pulse-strip" aria-label="Ringkasan suhu pasar hari ini">
+            <button type="button" class="pulse-card" id="pulseIdxCard">
+              <span class="pulse-label">Suhu IDX Populer</span>
+              <span class="pulse-val mono" id="pulseIdxVal">Memuat...</span>
+              <span class="pulse-sub" id="pulseIdxSub">10 saham utama RI</span>
             </button>
-            <button type="button" class="seg-btn" data-market="us" id="btnMarketUs">
-              Global (US)
+            <button type="button" class="pulse-card" id="pulseUsCard">
+              <span class="pulse-label">Suhu Saham US</span>
+              <span class="pulse-val mono" id="pulseUsVal">Klik lihat US</span>
+              <span class="pulse-sub" id="pulseUsSub">Tech & AI global</span>
+            </button>
+            <button type="button" class="pulse-card" id="pulseFxCard">
+              <span class="pulse-label">Kurs USD / IDR</span>
+              <span class="pulse-val mono" id="pulseFxVal">-</span>
+              <span class="pulse-sub" id="pulseFxSub">Referensi Frankfurter</span>
             </button>
           </div>
 
           <div id="stockConfigBanner" class="notice-banner hidden" role="status"></div>
 
-          <!-- Selected Asset Live Chart Card -->
-          <article class="card detail-card" id="stockDetailCard">
-            <div class="detail-head">
-              <div>
-                <div class="detail-title-row">
-                  <h2 class="detail-symbol" id="detailSymbol">BBCA</h2>
-                  <span class="pill-exchange" id="detailExchange">IDX</span>
-                  <span class="pill-status hidden" id="detailMarketState">BUKA</span>
+          <div class="stocks-workspace">
+            <!-- Left Column (Desktop Sticky): Selected Asset Live Chart Card -->
+            <div class="workspace-primary">
+              <article class="card detail-card" id="stockDetailCard">
+                <div class="detail-head">
+                  <div>
+                    <div class="detail-title-row">
+                      <h2 class="detail-symbol" id="detailSymbol">BBCA</h2>
+                      <span class="pill-exchange" id="detailExchange">IDX</span>
+                      <span class="pill-sector hidden" id="detailSector">Perbankan</span>
+                    </div>
+                    <p class="detail-name" id="detailName">Bank Central Asia Tbk</p>
+                    <p class="market-session-note hidden" id="detailMarketSession"></p>
+                  </div>
+                  <div class="detail-price-col">
+                    <div class="detail-price mono" id="detailPrice">-</div>
+                    <div class="detail-idr-est mono hidden" id="detailIdrEst"></div>
+                    <div class="detail-change mono" id="detailChange">-</div>
+                  </div>
                 </div>
-                <p class="detail-name" id="detailName">Bank Central Asia Tbk</p>
-              </div>
-              <div class="detail-price-col">
-                <div class="detail-price mono" id="detailPrice">-</div>
-                <div class="detail-change mono" id="detailChange">-</div>
-              </div>
-            </div>
 
-            <div class="chart-stage" id="chartStage">
-              <div class="chart-scrub-bar mono" id="chartScrubBar">
-                <span id="scrubPrice">Geser grafik untuk melihat titik harga</span>
-                <span id="scrubTime"></span>
-              </div>
-              <div class="chart-canvas-wrap">
-                <canvas id="priceChartCanvas" height="190" aria-label="Grafik pergerakan harga"></canvas>
-                <div id="chartEmptyState" class="chart-empty hidden">
-                  Data historis belum tersedia untuk rentang ini.
+                <div class="chart-stage" id="chartStage">
+                  <div class="chart-scrub-bar mono" id="chartScrubBar">
+                    <span id="scrubPrice">Geser grafik untuk melihat titik harga</span>
+                    <span id="scrubTime"></span>
+                  </div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="priceChartCanvas" height="210" aria-label="Grafik pergerakan harga"></canvas>
+                    <div id="chartEmptyState" class="chart-empty hidden">
+                      Data historis belum tersedia untuk rentang ini.
+                    </div>
+                  </div>
                 </div>
-              </div>
+
+                <div class="range-bar" role="group" aria-label="Rentang waktu grafik">
+                  <button type="button" class="range-btn" data-range="1d">1D</button>
+                  <button type="button" class="range-btn active" data-range="7d">7D</button>
+                  <button type="button" class="range-btn" data-range="30d">30D</button>
+                  <button type="button" class="range-btn" data-range="90d">90D</button>
+                </div>
+
+                <!-- Visual Daily Price Range Bar -->
+                <div id="dailyRangeWrap" class="range-meter hidden">
+                  <div class="range-meter-head">
+                    <span class="metric-label">Posisi Harga Hari Ini</span>
+                    <span id="rangeMeterCaption" class="range-meter-caption mono">-</span>
+                  </div>
+                  <div class="range-track" aria-hidden="true">
+                    <div class="range-fill" id="rangeTrackFill"></div>
+                    <div class="range-dot" id="rangeTrackDot"></div>
+                  </div>
+                  <div class="range-meter-ends mono">
+                    <span id="rangeLowEnd">Terendah: -</span>
+                    <span id="rangeHighEnd">Tertinggi: -</span>
+                  </div>
+                </div>
+
+                <div class="metrics-grid" id="detailMetrics">
+                  <div class="metric-cell">
+                    <span class="metric-label">Pembukaan</span>
+                    <span class="metric-val mono" id="metricOpen">-</span>
+                  </div>
+                  <div class="metric-cell">
+                    <span class="metric-label">Tertinggi</span>
+                    <span class="metric-val mono" id="metricHigh">-</span>
+                  </div>
+                  <div class="metric-cell">
+                    <span class="metric-label">Terendah</span>
+                    <span class="metric-val mono" id="metricLow">-</span>
+                  </div>
+                  <div class="metric-cell">
+                    <span class="metric-label" id="metricPrevLabel">Tutup Kemarin</span>
+                    <span class="metric-val mono" id="metricPrev">-</span>
+                  </div>
+                </div>
+
+                <div class="detail-actions">
+                  <button type="button" class="action-btn secondary" id="btnAddWatchlist">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span>+ Watchlist</span>
+                  </button>
+                  <button type="button" class="action-btn primary" id="btnOpenAlertModal">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                    </svg>
+                    <span>Pasang Alert</span>
+                  </button>
+                </div>
+
+                <footer class="source-footer">
+                  <span id="detailSource">Sumber: -</span>
+                  <span id="detailTime" class="mono">-</span>
+                </footer>
+              </article>
             </div>
 
-            <div class="range-bar" role="group" aria-label="Rentang waktu grafik">
-              <button type="button" class="range-btn" data-range="1d">1D</button>
-              <button type="button" class="range-btn active" data-range="7d">7D</button>
-              <button type="button" class="range-btn" data-range="30d">30D</button>
-              <button type="button" class="range-btn" data-range="90d">90D</button>
+            <!-- Right Column: Market Switcher + Sector Filter + Ticker List -->
+            <div class="workspace-secondary">
+              <div class="segmented" role="group" aria-label="Pilih bursa saham">
+                <button type="button" class="seg-btn active" data-market="idx" id="btnMarketIdx">
+                  Indonesia (IDX)
+                </button>
+                <button type="button" class="seg-btn" data-market="us" id="btnMarketUs">
+                  Global (US)
+                </button>
+              </div>
+
+              <div id="sectorFilterBar" class="chip-scroll" role="group" aria-label="Filter sektor saham"></div>
+
+              <div class="section-header">
+                <h3 id="stocksListTitle">Saham Populer Indonesia (IDX)</h3>
+                <span class="section-meta" id="stocksListMeta">Tap untuk grafik</span>
+              </div>
+
+              <div id="stocksList" class="ticker-list" aria-live="polite"></div>
             </div>
-
-            <div class="metrics-grid" id="detailMetrics">
-              <div class="metric-cell">
-                <span class="metric-label">Open</span>
-                <span class="metric-val mono" id="metricOpen">-</span>
-              </div>
-              <div class="metric-cell">
-                <span class="metric-label">High</span>
-                <span class="metric-val mono" id="metricHigh">-</span>
-              </div>
-              <div class="metric-cell">
-                <span class="metric-label">Low</span>
-                <span class="metric-val mono" id="metricLow">-</span>
-              </div>
-              <div class="metric-cell">
-                <span class="metric-label">Prev Close</span>
-                <span class="metric-val mono" id="metricPrev">-</span>
-              </div>
-            </div>
-
-            <div class="detail-actions">
-              <button type="button" class="action-btn secondary" id="btnAddWatchlist">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                </svg>
-                <span>+ Watchlist</span>
-              </button>
-              <button type="button" class="action-btn primary" id="btnOpenAlertModal">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-                </svg>
-                <span>Pasang Alert</span>
-              </button>
-            </div>
-
-            <footer class="source-footer">
-              <span id="detailSource">Sumber: -</span>
-              <span id="detailTime" class="mono">-</span>
-            </footer>
-          </article>
-
-          <div class="section-header">
-            <h3 id="stocksListTitle">Saham Populer Indonesia (IDX)</h3>
-            <span class="section-meta" id="stocksListMeta">Tap untuk grafik</span>
           </div>
-
-          <div id="stocksList" class="ticker-list" aria-live="polite"></div>
         </section>
 
         <!-- TAB 2: CRYPTO -->
         <section id="panel-crypto" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-crypto">
           <div class="kpi-strip" id="cryptoGlobalStrip">
             <div class="kpi-card">
-              <span class="kpi-label">Market Cap</span>
+              <span class="kpi-label">Nilai Pasar Global</span>
               <span class="kpi-value mono" id="kpiMarketCap">-</span>
             </div>
             <div class="kpi-card">
-              <span class="kpi-label">Volume 24h</span>
+              <span class="kpi-label">Transaksi 24 Jam</span>
               <span class="kpi-value mono" id="kpiVolume">-</span>
             </div>
             <div class="kpi-card">
-              <span class="kpi-label">BTC Dom</span>
+              <span class="kpi-label">Dominasi Bitcoin</span>
               <span class="kpi-value mono" id="kpiBtcDom">-</span>
             </div>
           </div>
 
-          <div class="section-header">
-            <h3>INDODAX (IDR)</h3>
-            <span class="section-meta">Sumber: INDODAX</span>
-          </div>
-          <div id="indodaxList" class="ticker-list"></div>
+          <div class="two-col-grid">
+            <div>
+              <div class="section-header">
+                <h3>Pasar Rupiah - INDODAX (IDR)</h3>
+                <span class="section-meta">Sumber: INDODAX</span>
+              </div>
+              <div id="indodaxList" class="ticker-list"></div>
+            </div>
 
-          <div class="section-header spaced">
-            <h3>Pergerakan 24 Jam Global</h3>
-            <div class="mini-toggle" role="group" aria-label="Filter movers">
-              <button type="button" class="mini-btn active" data-mover="gainers" id="btnGainers">Gainers</button>
-              <button type="button" class="mini-btn" data-mover="losers" id="btnLosers">Losers</button>
+            <div>
+              <div class="section-header spaced-mobile">
+                <h3>Pergerakan 24 Jam Global</h3>
+                <div class="mini-toggle" role="group" aria-label="Filter movers">
+                  <button type="button" class="mini-btn active" data-mover="gainers" id="btnGainers">Naik Tertinggi</button>
+                  <button type="button" class="mini-btn" data-mover="losers" id="btnLosers">Turun Terdalam</button>
+                </div>
+              </div>
+              <div id="moversList" class="ticker-list"></div>
+              <p class="attribution-note">Data global: Powered by CoinPaprika (free tier).</p>
             </div>
           </div>
-          <div id="moversList" class="ticker-list"></div>
-          <p class="attribution-note">Data global: Powered by CoinPaprika (free tier).</p>
         </section>
 
         <!-- TAB 3: KURS (FX) -->
         <section id="panel-fx" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-fx">
-          <article class="card fx-converter-card">
-            <h2 class="card-title">Konversi Kurs Referensi</h2>
-            <div class="fx-form">
-              <div class="fx-input-group">
-                <label for="fxAmount">Jumlah</label>
-                <input id="fxAmount" type="number" inputmode="decimal" value="100" min="0.0001" step="any" class="mono" />
-              </div>
-              <div class="fx-pair-row">
-                <div class="fx-select-wrap">
-                  <label for="fxFrom">Dari</label>
-                  <div class="fx-select-with-flag">
-                    <span id="fxFromFlag" class="fx-flag-slot" aria-hidden="true"></span>
-                    <select id="fxFrom">
-                      <option value="USD" selected>🇺🇸 USD - Dolar AS</option>
-                      <option value="IDR">🇮🇩 IDR - Rupiah</option>
-                      <option value="EUR">🇪🇺 EUR - Euro</option>
-                      <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
-                      <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
-                      <option value="GBP">🇬🇧 GBP - Poundsterling</option>
-                      <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
-                      <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
-                      <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
-                      <option value="KRW">🇰🇷 KRW - Won Korea</option>
-                      <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
-                    </select>
+          <div class="two-col-grid">
+            <div>
+              <article class="card fx-converter-card">
+                <h2 class="card-title">Konversi Kurs Referensi</h2>
+                <div class="fx-form">
+                  <div class="fx-input-group">
+                    <label for="fxAmount">Jumlah</label>
+                    <input id="fxAmount" type="number" inputmode="decimal" value="100" min="0.0001" step="any" class="mono" />
                   </div>
-                </div>
-                <button type="button" id="fxSwapBtn" class="icon-btn swap-btn" aria-label="Tukar mata uang">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m17 2 4 4-4 4"></path>
-                    <path d="M3 11v-1a4 4 0 0 1 4-4h14"></path>
-                    <path d="m7 22-4-4 4-4"></path>
-                    <path d="M21 13v1a4 4 0 0 1-4 4H3"></path>
-                  </svg>
-                </button>
-                <div class="fx-select-wrap">
-                  <label for="fxTo">Ke</label>
-                  <div class="fx-select-with-flag">
-                    <span id="fxToFlag" class="fx-flag-slot" aria-hidden="true"></span>
-                    <select id="fxTo">
-                      <option value="IDR" selected>🇮🇩 IDR - Rupiah</option>
-                      <option value="USD">🇺🇸 USD - Dolar AS</option>
-                      <option value="EUR">🇪🇺 EUR - Euro</option>
-                      <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
-                      <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
-                      <option value="GBP">🇬🇧 GBP - Poundsterling</option>
-                      <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
-                      <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
-                      <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
-                      <option value="KRW">🇰🇷 KRW - Won Korea</option>
-                      <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
-                    </select>
+                  <div class="fx-pair-row">
+                    <div class="fx-select-wrap">
+                      <label for="fxFrom">Dari</label>
+                      <div class="fx-select-with-flag">
+                        <span id="fxFromFlag" class="fx-flag-slot" aria-hidden="true"></span>
+                        <select id="fxFrom">
+                          <option value="USD" selected>🇺🇸 USD - Dolar AS</option>
+                          <option value="IDR">🇮🇩 IDR - Rupiah</option>
+                          <option value="EUR">🇪🇺 EUR - Euro</option>
+                          <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
+                          <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
+                          <option value="GBP">🇬🇧 GBP - Poundsterling</option>
+                          <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
+                          <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
+                          <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
+                          <option value="KRW">🇰🇷 KRW - Won Korea</option>
+                          <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button type="button" id="fxSwapBtn" class="icon-btn swap-btn" aria-label="Tukar mata uang">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m17 2 4 4-4 4"></path>
+                        <path d="M3 11v-1a4 4 0 0 1 4-4h14"></path>
+                        <path d="m7 22-4-4 4-4"></path>
+                        <path d="M21 13v1a4 4 0 0 1-4 4H3"></path>
+                      </svg>
+                    </button>
+                    <div class="fx-select-wrap">
+                      <label for="fxTo">Ke</label>
+                      <div class="fx-select-with-flag">
+                        <span id="fxToFlag" class="fx-flag-slot" aria-hidden="true"></span>
+                        <select id="fxTo">
+                          <option value="IDR" selected>🇮🇩 IDR - Rupiah</option>
+                          <option value="USD">🇺🇸 USD - Dolar AS</option>
+                          <option value="EUR">🇪🇺 EUR - Euro</option>
+                          <option value="SGD">🇸🇬 SGD - Dolar Singapura</option>
+                          <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
+                          <option value="GBP">🇬🇧 GBP - Poundsterling</option>
+                          <option value="AUD">🇦🇺 AUD - Dolar Australia</option>
+                          <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
+                          <option value="CNY">🇨🇳 CNY - Yuan Tiongkok</option>
+                          <option value="KRW">🇰🇷 KRW - Won Korea</option>
+                          <option value="SAR">🇸🇦 SAR - Riyal Saudi</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
+                  <button type="button" id="fxConvertBtn" class="action-btn primary full">Hitung Konversi</button>
                 </div>
-              </div>
-              <button type="button" id="fxConvertBtn" class="action-btn primary full">Hitung Konversi</button>
+                <div class="fx-result" id="fxResultBox">
+                  <div class="fx-result-main mono" id="fxResultValue">-</div>
+                  <div class="fx-result-sub mono" id="fxResultRate">-</div>
+                </div>
+              </article>
             </div>
-            <div class="fx-result" id="fxResultBox">
-              <div class="fx-result-main mono" id="fxResultValue">-</div>
-              <div class="fx-result-sub mono" id="fxResultRate">-</div>
-            </div>
-          </article>
 
-          <div class="section-header spaced">
-            <h3>Kurs Referensi (Base USD)</h3>
-            <span class="section-meta" id="fxRefDate">-</span>
+            <div>
+              <div class="section-header spaced-mobile">
+                <h3>Kurs Referensi (Base USD)</h3>
+                <span class="section-meta" id="fxRefDate">-</span>
+              </div>
+              <div id="fxRatesList" class="ticker-list"></div>
+              <p class="attribution-note">
+                Sumber: Frankfurter - kurs referensi bank sentral, bukan harga jual/beli bank atau money changer.
+              </p>
+            </div>
           </div>
-          <div id="fxRatesList" class="ticker-list"></div>
-          <p class="attribution-note">
-            Sumber: Frankfurter - kurs referensi bank sentral, bukan harga jual/beli bank atau forex real-time.
-          </p>
         </section>
 
         <!-- TAB 4: PANTAUAN (WATCHLIST & ALERTS) -->
         <section id="panel-personal" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-personal">
-          <div id="authNotice" class="notice-banner hidden">
-            Buka Mini App ini dari dalam bot Telegram DARFIN MARKET untuk menyimpan Watchlist dan Price Alerts personal.
+          <div id="authNotice" class="info-banner hidden">
+            <div>
+              <strong>Mode Browser Web:</strong> Watchlist kamu tersimpan otomatis di browser ini. Untuk sinkronisasi antar perangkat dan menerima notifikasi <strong>Price Alerts</strong> otomatis, buka lewat bot Telegram.
+            </div>
+            <a
+              href="https://t.me/darfinmarketbot"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="banner-cta"
+            >
+              Buka @darfinmarketbot
+            </a>
           </div>
 
-          <div class="section-header">
-            <h3>My Watchlist</h3>
-            <span class="section-meta" id="watchlistCount">0 aset</span>
-          </div>
-          <div id="watchlistContainer" class="ticker-list"></div>
+          <div class="two-col-grid">
+            <div>
+              <div class="section-header">
+                <h3>My Watchlist</h3>
+                <span class="section-meta" id="watchlistCount">0 aset</span>
+              </div>
+              <div id="watchlistContainer" class="ticker-list"></div>
+            </div>
 
-          <div class="section-header spaced">
-            <h3>Price Alerts</h3>
-            <span class="section-meta" id="alertsCount">0 alert</span>
+            <div>
+              <div class="section-header spaced-mobile">
+                <h3>Price Alerts (Notifikasi Telegram)</h3>
+                <span class="section-meta" id="alertsCount">0 alert</span>
+              </div>
+              <div id="alertsContainer" class="ticker-list"></div>
+            </div>
           </div>
-          <div id="alertsContainer" class="ticker-list"></div>
         </section>
 
         <p class="disclaimer-bar">
@@ -325,7 +421,7 @@
         </p>
       </main>
 
-      <!-- Bottom Navigation -->
+      <!-- Bottom Navigation (Mobile & Telegram Mini App) -->
       <nav class="bottom-nav" role="tablist" aria-label="Navigasi utama">
         <button type="button" class="nav-btn active" role="tab" aria-selected="true" id="tab-stocks" data-tab="stocks">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -358,6 +454,42 @@
       </nav>
     </div>
 
+    <!-- Beginner Glossary Modal (Kamus Mini Pemula) -->
+    <div id="guideModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle">
+      <div class="modal-sheet guide-sheet">
+        <div class="modal-head">
+          <h3 id="guideModalTitle">Kamus Singkat Pemula</h3>
+          <button type="button" id="closeGuideModal" class="icon-btn" aria-label="Tutup kamus">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="guide-list">
+          <div class="guide-item">
+            <strong>Pembukaan & Tutup Kemarin</strong>
+            <p>Pembukaan adalah harga pertama saat bursa buka hari ini. Tutup Kemarin adalah harga akhir sesi sebelumnya (patokan hitung naik/turun hari ini).</p>
+          </div>
+          <div class="guide-item">
+            <strong>Posisi Harga Hari Ini (Tertinggi / Terendah)</strong>
+            <p>Menunjukkan posisi harga sekarang dibanding titik terendah dan tertinggi hari ini. Semakin ke kanan berarti mendekati puncak harian.</p>
+          </div>
+          <div class="guide-item">
+            <strong>Jam Bursa IDX & US</strong>
+            <p>Bursa Indonesia (IDX) buka Senin-Jumat sekitar 09:00-16:00 WIB. Bursa AS (NASDAQ/NYSE) buka malam hari waktu Indonesia (sekitar 20:30/21:30 WIB). Saat tutup, harga yang tampil adalah harga penutupan terakhir.</p>
+          </div>
+          <div class="guide-item">
+            <strong>Nilai Pasar Global & Dominasi Bitcoin</strong>
+            <p>Nilai Pasar Global (Market Cap) adalah total nilai seluruh koin crypto beredar. Dominasi Bitcoin menunjukkan berapa persen pangsa pasar crypto yang dipegang Bitcoin.</p>
+          </div>
+          <div class="guide-item">
+            <strong>Kurs Referensi vs Kurs Bank</strong>
+            <p>Kurs dari Frankfurter adalah kurs referensi bank sentral harian untuk patokan hitung cepat, bukan kurs jual/beli loket bank atau money changer.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Alert Modal -->
     <div id="alertModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="alertModalTitle">
       <div class="modal-sheet">
@@ -377,8 +509,8 @@
           <div class="field">
             <label for="alertConditionInput">Kondisi</label>
             <select id="alertConditionInput">
-              <option value="above">Naik melewati (Above)</option>
-              <option value="below">Turun melewati (Below)</option>
+              <option value="above">Naik melewati target (Above)</option>
+              <option value="below">Turun melewati target (Below)</option>
             </select>
           </div>
           <div class="field">
