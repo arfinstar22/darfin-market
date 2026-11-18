@@ -27,6 +27,7 @@ const state = {
   },
   chartRange: "7d",
   chartPoints: [],
+  selectionSeq: 0,
   stocksItems: [],
   previousPrices: new Map(),
   cryptoData: null,
@@ -388,7 +389,7 @@ function renderDetailTicker(ticker, fallbackMeta) {
     : "-";
 }
 
-async function loadChartForSelected() {
+async function loadChartForSelected(expectedSeq = state.selectionSeq) {
   const emptyEl = document.getElementById("chartEmptyState");
   emptyEl.textContent = "Memuat grafik...";
   emptyEl.classList.remove("hidden");
@@ -398,12 +399,14 @@ async function loadChartForSelected() {
     const data = await apiFetch(
       `/api/chart?symbol=${encodeURIComponent(state.selectedAsset.lookupKey)}&range=${encodeURIComponent(state.chartRange)}`,
     );
+    if (expectedSeq !== state.selectionSeq) return;
     state.chartPoints = data.series.points ?? [];
     drawChart(state.chartPoints, data.series.quoteCurrency || state.selectedAsset.currency);
     if (data.series.sourceNote) {
       document.getElementById("detailSource").textContent = data.series.sourceNote;
     }
   } catch (err) {
+    if (expectedSeq !== state.selectionSeq) return;
     emptyEl.textContent = err.message || "Data grafik belum tersedia untuk rentang ini.";
     drawChart([], state.selectedAsset.currency);
   }
@@ -411,9 +414,12 @@ async function loadChartForSelected() {
 
 async function selectAsset(meta) {
   haptic("light");
+  const seq = ++state.selectionSeq;
+
   if (meta.assetClass === "stock") {
     try {
       const data = await apiFetch(`/api/stock/${encodeURIComponent(meta.lookupKey || meta.symbol)}`);
+      if (seq !== state.selectionSeq) return;
       renderDetailTicker(data.result.ticker, meta);
       if (data.result.unconfiguredHint) {
         const banner = document.getElementById("stockConfigBanner");
@@ -421,19 +427,37 @@ async function selectAsset(meta) {
         banner.classList.remove("hidden");
       }
     } catch {
+      if (seq !== state.selectionSeq) return;
       renderDetailTicker(null, meta);
     }
   } else {
     try {
-      const data = await apiFetch(`/api/crypto/${encodeURIComponent(meta.symbol)}`);
-      const t = data.result.indodaxTicker ?? data.result.globalTicker;
+      const queryKey = meta.exchange === "COINPAPRIKA" ? (meta.lookupKey || meta.symbol) : meta.symbol;
+      const data = await apiFetch(`/api/crypto/${encodeURIComponent(queryKey)}`);
+      if (seq !== state.selectionSeq) return;
+      const t =
+        meta.exchange === "COINPAPRIKA"
+          ? (data.result.globalTicker ?? data.result.indodaxTicker)
+          : (data.result.indodaxTicker ?? data.result.globalTicker);
       renderDetailTicker(t, meta);
     } catch {
+      if (seq !== state.selectionSeq) return;
       renderDetailTicker(null, meta);
     }
   }
+
+  if (seq !== state.selectionSeq) return;
   highlightSelectedRow();
-  await loadChartForSelected();
+  connectLiveStream();
+  await loadChartForSelected(seq);
+}
+
+function openAssetInTerminal(meta) {
+  switchTab("stocks", { preserveSelection: true });
+  void selectAsset(meta);
+  if (window.innerWidth < 1024) {
+    document.getElementById("stockDetailCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function highlightSelectedRow() {
@@ -507,7 +531,8 @@ function renderSectorChips(items) {
   }
 }
 
-async function loadStocksTab() {
+async function loadStocksTab(options = { preserveSelection: false }) {
+  const seqBefore = state.selectionSeq;
   const listEl = document.getElementById("stocksList");
   const titleEl = document.getElementById("stocksListTitle");
   const banner = document.getElementById("stockConfigBanner");
@@ -516,7 +541,9 @@ async function loadStocksTab() {
     state.stockMarket === "idx"
       ? "Saham Populer Indonesia (IDX)"
       : "Saham Populer Internasional (US)";
-  listEl.innerHTML = `<div class="empty-state">Memuat harga saham...</div>`;
+  if (state.stocksItems.length === 0 || !options.preserveSelection) {
+    listEl.innerHTML = `<div class="empty-state">Memuat harga saham...</div>`;
+  }
 
   try {
     const data = await apiFetch(`/api/stocks?market=${state.stockMarket}`);
@@ -534,25 +561,28 @@ async function loadStocksTab() {
     renderStocksList(state.stocksItems);
     document.getElementById("lastSyncText").textContent = `Update ${formatTimeLocal(data.updatedAt)}`;
 
-    const currentInList = state.stocksItems.find(
-      (i) => i.lookupKey === state.selectedAsset.lookupKey,
-    );
-    const target = currentInList ?? state.stocksItems[0];
-    if (target) {
-      renderDetailTicker(target.ticker, {
-        symbol: target.symbol,
-        lookupKey: target.lookupKey,
-        name: target.name,
-        assetClass: "stock",
-        currency: target.currency,
-        exchange: target.exchange,
-        sector: target.sector,
-      });
-      highlightSelectedRow();
-      void loadChartForSelected();
+    // Never overwrite the detail card if caller preserved selection or user picked another asset mid-flight
+    if (!options.preserveSelection && seqBefore === state.selectionSeq) {
+      const currentInList = state.stocksItems.find(
+        (i) => i.lookupKey === state.selectedAsset.lookupKey,
+      );
+      const target = currentInList ?? state.stocksItems[0];
+      if (target) {
+        const seq = ++state.selectionSeq;
+        renderDetailTicker(target.ticker, {
+          symbol: target.symbol,
+          lookupKey: target.lookupKey,
+          name: target.name,
+          assetClass: "stock",
+          currency: target.currency,
+          exchange: target.exchange,
+          sector: target.sector,
+        });
+        highlightSelectedRow();
+        void loadChartForSelected(seq);
+      }
+      connectLiveStream();
     }
-
-    connectLiveStream();
   } catch (err) {
     listEl.innerHTML = `<div class="empty-state">${err.message}</div>`;
   }
@@ -629,7 +659,10 @@ function connectLiveStream() {
   const badge = document.getElementById("streamBadge");
   const label = document.getElementById("streamLabel");
 
-  const type = state.activeTab === "crypto" ? "crypto" : "stock";
+  const type =
+    state.activeTab === "crypto" || state.selectedAsset.assetClass === "crypto"
+      ? "crypto"
+      : "stock";
   const symbols =
     type === "stock"
       ? state.stocksItems.slice(0, 8).map((i) => i.lookupKey).join(",")
@@ -656,14 +689,28 @@ function connectLiveStream() {
         });
         renderStocksList(state.stocksItems);
 
-        const activeFresh =
-          map.get(state.selectedAsset.lookupKey) ?? map.get(state.selectedAsset.symbol);
-        if (activeFresh) {
-          renderDetailTicker(activeFresh, state.selectedAsset);
+        if (state.selectedAsset.assetClass === "stock") {
+          const activeFresh =
+            map.get(state.selectedAsset.lookupKey) ?? map.get(state.selectedAsset.symbol);
+          if (activeFresh) {
+            renderDetailTicker(activeFresh, state.selectedAsset);
+          }
         }
-      } else if (type === "crypto" && Array.isArray(payload.ticks) && state.cryptoData) {
-        state.cryptoData.indodax = payload.ticks;
-        renderIndodaxList(payload.ticks);
+      } else if (type === "crypto" && Array.isArray(payload.ticks)) {
+        if (state.cryptoData) {
+          state.cryptoData.indodax = payload.ticks;
+          if (state.activeTab === "crypto") {
+            renderIndodaxList(payload.ticks);
+          }
+        }
+        if (state.selectedAsset.assetClass === "crypto" && state.selectedAsset.exchange === "INDODAX") {
+          const match = payload.ticks.find(
+            (t) => t.symbol.toUpperCase() === state.selectedAsset.symbol.toUpperCase(),
+          );
+          if (match) {
+            renderDetailTicker(match, state.selectedAsset);
+          }
+        }
       }
     } catch {
       // ignore malformed tick
@@ -729,8 +776,7 @@ function renderIndodaxList(tickers) {
       </div>
     `;
     row.addEventListener("click", () => {
-      switchTab("stocks");
-      void selectAsset({
+      openAssetInTerminal({
         symbol: t.symbol,
         lookupKey: t.symbol,
         name: t.name ?? t.symbol,
@@ -774,8 +820,7 @@ function renderMoversList() {
       </div>
     `;
     row.addEventListener("click", () => {
-      switchTab("stocks");
-      void selectAsset({
+      openAssetInTerminal({
         symbol: t.symbol,
         lookupKey: t.assetId,
         name: t.name ?? t.symbol,
@@ -977,8 +1022,7 @@ async function loadPersonalTab() {
         </div>
       `;
       card.querySelector("[data-open-wl]").addEventListener("click", () => {
-        switchTab("stocks");
-        void selectAsset(item);
+        openAssetInTerminal(item);
       });
       card.querySelector("[data-rm-local]").addEventListener("click", () => {
         const next = getLocalWatchlist().filter((w) => w.lookupKey !== item.lookupKey);
@@ -1114,8 +1158,7 @@ function setupSearch() {
               closeDropdown();
               input.value = "";
               clearBtn.classList.add("hidden");
-              switchTab("stocks");
-              void selectAsset({
+              openAssetInTerminal({
                 symbol: r.symbol,
                 lookupKey: r.assetId,
                 name: r.name,
@@ -1145,7 +1188,7 @@ function setupSearch() {
   });
 }
 
-function switchTab(tab) {
+function switchTab(tab, options = { preserveSelection: false }) {
   haptic("light");
   state.activeTab = tab;
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
@@ -1156,10 +1199,18 @@ function switchTab(tab) {
     btn.setAttribute("aria-selected", String(active));
   });
 
-  if (tab === "stocks") void loadStocksTab();
-  else if (tab === "crypto") void loadCryptoTab();
-  else if (tab === "fx") void loadFxTab();
-  else if (tab === "personal") void loadPersonalTab();
+  if (tab === "stocks") {
+    if (options.preserveSelection && state.stocksItems.length > 0) {
+      return;
+    }
+    void loadStocksTab(options);
+  } else if (tab === "crypto") {
+    void loadCryptoTab();
+  } else if (tab === "fx") {
+    void loadFxTab();
+  } else if (tab === "personal") {
+    void loadPersonalTab();
+  }
 }
 
 function setupControls() {
@@ -1224,8 +1275,14 @@ function setupControls() {
 
   document.getElementById("refreshBtn").addEventListener("click", () => {
     haptic("medium");
-    if (state.activeTab === "stocks") void loadStocksTab();
-    else if (state.activeTab === "crypto") void loadCryptoTab();
+    if (state.activeTab === "stocks") {
+      if (state.selectedAsset.assetClass === "crypto") {
+        void loadStocksTab({ preserveSelection: true });
+        void selectAsset(state.selectedAsset);
+      } else {
+        void loadStocksTab();
+      }
+    } else if (state.activeTab === "crypto") void loadCryptoTab();
     else if (state.activeTab === "fx") void loadFxTab();
     else void loadPersonalTab();
   });
@@ -1351,7 +1408,7 @@ async function bootstrap() {
         document.getElementById("btnMarketIdx").classList.remove("active");
         document.getElementById("btnMarketUs").classList.add("active");
       }
-      await loadStocksTab();
+      await loadStocksTab({ preserveSelection: true });
       await selectAsset({
         symbol: deepAsset.replace(":IDX", "").replace(".JK", ""),
         lookupKey: deepAsset,
