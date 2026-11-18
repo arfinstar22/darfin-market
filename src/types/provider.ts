@@ -5,7 +5,8 @@ export type ProviderName =
   | "finnhub"
   | "twelvedata"
   | "alphavantage"
-  | "goapi";
+  | "goapi"
+  | "yahoo";
 
 export type ProviderHealthState = "healthy" | "degraded" | "down" | "unconfigured";
 

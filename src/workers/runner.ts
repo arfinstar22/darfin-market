@@ -48,6 +48,12 @@ export async function startBackgroundWorkers(
       );
     }
 
+    await alertQueue.upsertJobScheduler(
+      "alert-yahoo",
+      { every: env.STOCK_ALERT_INTERVAL_SECONDS * 1000 },
+      { name: "check-provider", data: { provider: "yahoo" satisfies ProviderName } },
+    );
+
     if (container.providers.finnhub.isConfigured()) {
       await alertQueue.upsertJobScheduler(
         "alert-finnhub",
@@ -144,6 +150,13 @@ export async function startBackgroundWorkers(
       ),
     );
   }
+
+  timers.push(
+    setInterval(
+      () => runSafe("alert-yahoo", () => processAlertsForProvider(container, telegramApi, "yahoo")),
+      env.STOCK_ALERT_INTERVAL_SECONDS * 1000,
+    ),
+  );
 
   if (container.providers.finnhub.isConfigured()) {
     timers.push(

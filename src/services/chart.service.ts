@@ -3,6 +3,7 @@ import type { CoinPaprikaProvider } from "../providers/coinpaprika/provider.js";
 import type { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import type { IndodaxProvider } from "../providers/indodax/provider.js";
 import type { TwelveDataProvider } from "../providers/twelvedata/provider.js";
+import type { YahooFinanceIdxProvider } from "../providers/yahoo/provider.js";
 import type { ChartRange, ChartSeries } from "../types/market.js";
 import { ValidationError } from "../utils/errors.js";
 import { parseStockInput } from "./stock.service.js";
@@ -29,6 +30,7 @@ export class ChartService {
     private readonly coinpaprika: CoinPaprikaProvider,
     private readonly twelvedata: TwelveDataProvider,
     private readonly goapi?: GoApiIdxProvider,
+    private readonly yahoo?: YahooFinanceIdxProvider,
   ) {}
 
   async getChartSeries(symbolInput: string, range: ChartRange): Promise<ChartSeries> {
@@ -36,7 +38,7 @@ export class ChartService {
     const upper = clean.toUpperCase();
     const since = new Date(Date.now() - RANGE_DAYS[range] * 86_400_000);
 
-    // 1. Check if stock (IDX via GoAPI first, then Twelve Data for US/Global)
+    // 1. Check if stock (IDX via GoAPI or Yahoo Finance, then Twelve Data for US/Global)
     const parsedStock = parseStockInput(clean);
     const looksLikeStock =
       upper.endsWith(".JK") ||
@@ -58,6 +60,26 @@ export class ChartService {
           range,
           points: candles.map((c) => ({ timestamp: c.timestamp, price: c.close })),
           sourceNote: "Sumber: GoAPI.io (IDX) - data historis harian",
+          startedAt: candles[0]!.timestamp,
+          endedAt: candles[candles.length - 1]!.timestamp,
+        };
+      }
+    }
+
+    if (parsedStock.market === "IDX" && this.yahoo?.isConfigured()) {
+      const candles = await this.yahoo.getHistoricalCandles(
+        { symbol: parsedStock.symbol, exchange: "IDX" },
+        range,
+      );
+      if (candles.length >= 2) {
+        return {
+          provider: "yahoo",
+          assetId: `${parsedStock.symbol}:IDX`,
+          symbol: parsedStock.symbol,
+          quoteCurrency: "IDR",
+          range,
+          points: candles.map((c) => ({ timestamp: c.timestamp, price: c.close })),
+          sourceNote: "Sumber: Yahoo Finance (IDX) — delay ~15 menit",
           startedAt: candles[0]!.timestamp,
           endedAt: candles[candles.length - 1]!.timestamp,
         };

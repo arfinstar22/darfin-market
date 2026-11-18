@@ -30,6 +30,7 @@ export async function captureIndodaxSnapshots(container: AppContainer): Promise<
     container.providers.coinpaprika.getProviderStatus(),
     container.providers.frankfurter.getProviderStatus(),
     container.providers.goapi.getProviderStatus(),
+    container.providers.yahoo.getProviderStatus(),
     container.providers.finnhub.getProviderStatus(),
     container.providers.twelvedata.getProviderStatus(),
     container.providers.alphavantage.getProviderStatus(),

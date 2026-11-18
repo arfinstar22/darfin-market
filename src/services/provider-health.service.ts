@@ -7,6 +7,7 @@ import type { FrankfurterProvider } from "../providers/frankfurter/provider.js";
 import type { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import type { IndodaxProvider } from "../providers/indodax/provider.js";
 import type { TwelveDataProvider } from "../providers/twelvedata/provider.js";
+import type { YahooFinanceIdxProvider } from "../providers/yahoo/provider.js";
 import type { ProviderStatus } from "../types/provider.js";
 import { quotaTracker, type QuotaStatus } from "../utils/quota.js";
 
@@ -28,6 +29,7 @@ export class ProviderHealthService {
       coinpaprika: CoinPaprikaProvider;
       frankfurter: FrankfurterProvider;
       goapi: GoApiIdxProvider;
+      yahoo: YahooFinanceIdxProvider;
       finnhub: FinnhubProvider;
       twelvedata: TwelveDataProvider;
       alphavantage: AlphaVantageProvider;
@@ -59,6 +61,7 @@ export class ProviderHealthService {
         this.providers.coinpaprika.getProviderStatus(),
         this.providers.frankfurter.getProviderStatus(),
         this.providers.goapi.getProviderStatus(),
+        this.providers.yahoo.getProviderStatus(),
         this.providers.finnhub.getProviderStatus(),
         this.providers.twelvedata.getProviderStatus(),
         this.providers.alphavantage.getProviderStatus(),

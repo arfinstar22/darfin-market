@@ -9,6 +9,7 @@ import type { AlphaVantageProvider } from "../providers/alphavantage/provider.js
 import type { FinnhubProvider } from "../providers/finnhub/provider.js";
 import type { GoApiIdxProvider } from "../providers/goapi/provider.js";
 import type { TwelveDataProvider } from "../providers/twelvedata/provider.js";
+import type { YahooFinanceIdxProvider } from "../providers/yahoo/provider.js";
 import type { AssetSearchResult, MarketTicker } from "../types/market.js";
 import { logger } from "../utils/logger.js";
 
@@ -68,6 +69,7 @@ export class StockService {
     private readonly twelvedata: TwelveDataProvider,
     private readonly alphavantage: AlphaVantageProvider,
     private readonly goapi?: GoApiIdxProvider,
+    private readonly yahoo?: YahooFinanceIdxProvider,
   ) {}
 
   getPopularIdxStocks(): readonly CuratedStock[] {
@@ -80,6 +82,7 @@ export class StockService {
 
   hasAnyConfiguredProvider(): boolean {
     return (
+      Boolean(this.yahoo?.isConfigured()) ||
       Boolean(this.goapi?.isConfigured()) ||
       this.finnhub.isConfigured() ||
       this.twelvedata.isConfigured() ||
@@ -88,11 +91,16 @@ export class StockService {
   }
 
   hasIdxProviderConfigured(): boolean {
-    return Boolean(this.goapi?.isConfigured()) || this.twelvedata.isConfigured() || this.alphavantage.isConfigured();
+    return (
+      Boolean(this.goapi?.isConfigured()) ||
+      Boolean(this.yahoo?.isConfigured()) ||
+      this.twelvedata.isConfigured() ||
+      this.alphavantage.isConfigured()
+    );
   }
 
   /**
-   * Batch lookup for IDX stocks — uses GoAPI.io single batch call when configured (10x fewer requests).
+   * Batch lookup for IDX stocks — single batch call via GoAPI (if key set) or Yahoo Finance (.JK).
    */
   async lookupIdxBatch(symbols: string[]): Promise<Map<string, StockLookupResult>> {
     const results = new Map<string, StockLookupResult>();
@@ -107,7 +115,20 @@ export class StockService {
         }
         return results;
       } catch (error) {
-        logger.warn({ err: String(error) }, "GoAPI batch IDX fetch failed, falling back per symbol");
+        logger.warn({ err: String(error) }, "GoAPI batch IDX fetch failed, trying Yahoo Finance");
+      }
+    }
+
+    if (this.yahoo?.isConfigured()) {
+      try {
+        const batchMap = await this.yahoo.getBatchIdxQuotes(cleanSymbols);
+        for (const sym of cleanSymbols) {
+          const ticker = batchMap.get(sym) ?? null;
+          results.set(sym, { query: sym, market: "IDX", ticker });
+        }
+        return results;
+      } catch (error) {
+        logger.warn({ err: String(error) }, "Yahoo Finance batch IDX fetch failed");
       }
     }
 
@@ -142,7 +163,7 @@ export class StockService {
 
     const errors: string[] = [];
 
-    // 1. GoAPI.io first (dedicated Indonesian IDX provider with free tier)
+    // 1. GoAPI.io first if key configured
     if (this.goapi?.isConfigured()) {
       try {
         const ticker = await this.goapi.getQuote({ symbol: parsed.symbol, exchange: "IDX" });
@@ -152,6 +173,19 @@ export class StockService {
       } catch (error) {
         logger.warn({ symbol: parsed.symbol, err: String(error) }, "GoAPI IDX quote failed");
         errors.push("GoAPI.io");
+      }
+    }
+
+    // 2. Yahoo Finance (.JK) — free IDX quotes (~15m delay)
+    if (this.yahoo?.isConfigured()) {
+      try {
+        const ticker = await this.yahoo.getQuote({ symbol: parsed.symbol, exchange: "IDX" });
+        if (ticker) {
+          return { query: parsed.symbol, market: "IDX", ticker };
+        }
+      } catch (error) {
+        logger.warn({ symbol: parsed.symbol, err: String(error) }, "Yahoo IDX quote failed");
+        errors.push("Yahoo Finance");
       }
     }
 
@@ -299,6 +333,9 @@ export class StockService {
     const remoteCalls: Promise<AssetSearchResult[]>[] = [];
     if (this.goapi?.isConfigured()) {
       remoteCalls.push(this.goapi.searchStocks(query, limit));
+    }
+    if (this.yahoo?.isConfigured()) {
+      remoteCalls.push(this.yahoo.searchStocks(query, limit));
     }
     if (this.twelvedata.isConfigured()) {
       remoteCalls.push(this.twelvedata.searchStocks(query, limit));

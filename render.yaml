@@ -26,8 +26,6 @@ services:
         sync: false
       - key: FINNHUB_API_KEY
         sync: false
-      - key: GOAPI_API_KEY
-        sync: false
       - key: TWELVE_DATA_API_KEY
         sync: false
       - key: ALPHA_VANTAGE_API_KEY

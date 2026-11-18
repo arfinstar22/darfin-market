@@ -6,6 +6,8 @@ import type { FinnhubClient } from "../../src/providers/finnhub/client.js";
 import { FinnhubProvider } from "../../src/providers/finnhub/provider.js";
 import type { GoApiClient } from "../../src/providers/goapi/client.js";
 import { GoApiIdxProvider } from "../../src/providers/goapi/provider.js";
+import type { YahooClientAdapter } from "../../src/providers/yahoo/provider.js";
+import { YahooFinanceIdxProvider } from "../../src/providers/yahoo/provider.js";
 import type { FrankfurterClient } from "../../src/providers/frankfurter/client.js";
 import { FrankfurterProvider } from "../../src/providers/frankfurter/provider.js";
 import type { TwelveDataClient } from "../../src/providers/twelvedata/client.js";
@@ -129,6 +131,56 @@ describe("Stock routing (Indonesia IDX & International US) and FX conversion", (
     const single = await stockService.lookupStock("BBCA");
     expect(single.ticker?.price).toBe("10150");
     expect(goApiClient.getPrices).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Yahoo Finance (.JK) batch provider automatically for IDX when GoAPI is not set", async () => {
+    const cache = new MemoryCacheService();
+    const mockYahoo: YahooClientAdapter = {
+      quote: vi.fn().mockResolvedValue([
+        {
+          symbol: "BBCA.JK",
+          shortName: "Bank Central Asia Tbk",
+          currency: "IDR",
+          regularMarketPrice: 5700,
+          regularMarketPreviousClose: 5500,
+          regularMarketChange: 200,
+          regularMarketChangePercent: 3.6363,
+          regularMarketOpen: 5550,
+          regularMarketDayHigh: 5725,
+          regularMarketDayLow: 5525,
+          regularMarketVolume: 120000000,
+          regularMarketTime: new Date("2026-11-18T02:46:00Z"),
+          marketState: "REGULAR",
+        },
+      ]),
+      chart: vi.fn().mockResolvedValue([
+        { date: new Date("2026-11-17T02:00:00Z"), open: 5500, high: 5600, low: 5475, close: 5550 },
+        { date: new Date("2026-11-18T02:00:00Z"), open: 5550, high: 5725, low: 5525, close: 5700 },
+      ]),
+      search: vi.fn().mockResolvedValue([]),
+    };
+
+    const yahoo = new YahooFinanceIdxProvider(cache, mockYahoo);
+    const stockService = new StockService(
+      new FinnhubProvider(cache, { isConfigured: () => false } as unknown as FinnhubClient),
+      new TwelveDataProvider(cache, { isConfigured: () => false } as unknown as TwelveDataClient),
+      new AlphaVantageProvider(cache, { isConfigured: () => false } as unknown as AlphaVantageClient),
+      new GoApiIdxProvider(cache, { isConfigured: () => false } as unknown as GoApiClient),
+      yahoo,
+    );
+
+    const batch = await stockService.lookupIdxBatch(["BBCA"]);
+    const bbca = batch.get("BBCA")?.ticker;
+    expect(bbca?.provider).toBe("yahoo");
+    expect(bbca?.exchange).toBe("IDX");
+    expect(bbca?.quoteCurrency).toBe("IDR");
+    expect(bbca?.price).toBe("5700");
+    expect(bbca?.isMarketOpen).toBe(true);
+    expect(bbca?.sourceLabel).toContain("Yahoo Finance (IDX)");
+
+    const candles = await yahoo.getHistoricalCandles({ symbol: "BBCA", exchange: "IDX" }, "7d");
+    expect(candles.length).toBe(2);
+    expect(candles[1]?.close).toBe("5700");
   });
 
   it("converts FX using Frankfurter reference rates and rejects invalid amount or unsupported currency", async () => {
